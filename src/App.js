@@ -1,4 +1,25 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import './mobile.css';
+
+// ===== Mobile Responsive Hook =====
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+}
+
+// ===== Scrollable Table Wrapper for Mobile =====
+function TableWrap({ children }) {
+  return (
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+      {children}
+    </div>
+  );
+}
 
 // Firebase REST API (بدون npm - يعمل في أي مكان)
 const FB_URL = "https://moi-attendance-c86f3-default-rtdb.asia-southeast1.firebasedatabase.app/attendance_data.json";
@@ -219,13 +240,13 @@ function LimitBar({label,used,max,color}){
 }
 
 function Modal({title,onClose,children}){return(
-  <div style={{position:"fixed",inset:0,background:"rgba(0,0,20,0.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:540,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
-      <div style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff",padding:"16px 20px",borderRadius:"12px 12px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <h3 style={{margin:0,fontSize:16,fontWeight:700}}>{title}</h3>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:16,fontFamily:"inherit"}}>✕</button>
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,20,0.55)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"12px 8px",overflowY:"auto"}}>
+    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:540,maxHeight:"calc(100vh - 24px)",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",margin:"auto"}}>
+      <div style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff",padding:"14px 16px",borderRadius:"12px 12px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:1}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>{title}</h3>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontSize:16,fontFamily:"inherit",minHeight:36,touchAction:"manipulation"}}>✕</button>
       </div>
-      <div style={{padding:24}}>{children}</div>
+      <div style={{padding:16}}>{children}</div>
     </div>
   </div>
 );}
@@ -237,14 +258,14 @@ function FF({label,children,required}){return(
   </div>
 );}
 
-const iS={width:"100%",padding:"9px 12px",border:"1.5px solid #c8d4e8",borderRadius:8,fontSize:14,boxSizing:"border-box",fontFamily:"inherit",outline:"none"};
+const iS={width:"100%",padding:"10px 12px",border:"1.5px solid #c8d4e8",borderRadius:8,fontSize:16,boxSizing:"border-box",fontFamily:"inherit",outline:"none"};
 const sS={...iS,background:"#fff"};
-const bP={background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"inherit"};
-const bS={background:"#f0f4fa",color:"#0a2d5e",border:"1.5px solid #c8d4e8",borderRadius:8,padding:"10px 20px",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"inherit"};
-const bSm={...bP,padding:"6px 12px",fontSize:12};
-const bGold={background:"linear-gradient(135deg,#b8860b,#d4a017)",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit"};
-const bRed={background:"#c0392b",color:"#fff",border:"none",borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:12,fontFamily:"inherit"};
-const bGreen={background:"linear-gradient(135deg,#1a6b3a,#2d9e5e)",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12,fontFamily:"inherit"};
+const bP={background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"inherit",minHeight:44,touchAction:"manipulation"};
+const bS={background:"#f0f4fa",color:"#0a2d5e",border:"1.5px solid #c8d4e8",borderRadius:8,padding:"10px 20px",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"inherit",minHeight:44,touchAction:"manipulation"};
+const bSm={...bP,padding:"8px 12px",fontSize:12,minHeight:36};
+const bGold={background:"linear-gradient(135deg,#b8860b,#d4a017)",color:"#fff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"inherit",minHeight:36,touchAction:"manipulation"};
+const bRed={background:"#c0392b",color:"#fff",border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:12,fontFamily:"inherit",minHeight:36,touchAction:"manipulation"};
+const bGreen={background:"linear-gradient(135deg,#1a6b3a,#2d9e5e)",color:"#fff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontSize:12,fontFamily:"inherit",minHeight:36,touchAction:"manipulation"};
 
 // ===== APP =====
 export default function App(){
@@ -265,7 +286,7 @@ export default function App(){
   return(
     <div style={{minHeight:"100vh",background:"#f0f4fa",fontFamily:"'Segoe UI',Tahoma,Arial,sans-serif",direction:"rtl"}}>
       <Header onLogout={logout} user={user} page={page} setPage={setPage} isAdmin={isAdmin} myStats={myStats}/>
-      <div style={{maxWidth:1200,margin:"0 auto",padding:"24px 16px"}}>
+      <div style={{maxWidth:1200,margin:"0 auto",padding:"16px 10px"}}>
         {page==="dashboard"   && <Dashboard   db={db} user={user} isAdmin={isAdmin} cy={cy} cm={cm}/>}
         {page==="myaccount"   && !isAdmin && <MyAccount db={db} user={user} cy={cy} cm={cm} persist={persist}/>}
         {page==="employees"   && isAdmin  && <EmployeesPage db={db} persist={persist} cy={cy} cm={cm}/>}
@@ -321,34 +342,49 @@ const navItems=[
   {key:"messages",    label:"الرسائل",         icon:"📨",adminOnly:true},
 ];
 function Header({onLogout,user,page,setPage,isAdmin,myStats}){
+  const isMobile = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
   const alerts=myStats?[myStats.lateOver,myStats.permOver,myStats.sickOver,myStats.emergOver].filter(Boolean).length:0;
+  const visibleNav = navItems.filter(n=>{if(n.adminOnly&&!isAdmin)return false;if(n.empOnly&&isAdmin)return false;return true;});
   return(<>
-    <div style={{background:"linear-gradient(135deg,#06173a,#0a2d5e)",color:"#fff",padding:"10px 20px",direction:"rtl"}}>
-      <div style={{maxWidth:1200,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <img src={MOI_LOGO} alt="" style={{width:52,height:52,objectFit:"contain",filter:"brightness(1.08)"}}/>
-          <div>
-            <div style={{fontSize:10,color:"#a8c4e8",lineHeight:1.6}}>وزارة الداخلية | قطاع التعليم والتدريب | الإدارة العامة للتدريب | إدارة التنسيق والمتابعة | قسم المعلومات والإحصاء</div>
-            <div style={{fontSize:15,fontWeight:800,color:"#d4a017"}}>منصة رصد قسم المعلومات والإحصاء</div>
-          </div>
+    <div style={{background:"linear-gradient(135deg,#06173a,#0a2d5e)",color:"#fff",padding:"8px 12px",direction:"rtl"}}>
+      <div style={{maxWidth:1200,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+          <img src={MOI_LOGO} alt="" style={{width:isMobile?36:48,height:isMobile?36:48,objectFit:"contain",filter:"brightness(1.08)",flexShrink:0}}/>
+          {!isMobile&&<div style={{minWidth:0}}>
+            <div style={{fontSize:10,color:"#a8c4e8",lineHeight:1.5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>وزارة الداخلية | قطاع التعليم والتدريب | الإدارة العامة للتدريب</div>
+            <div style={{fontSize:14,fontWeight:800,color:"#d4a017"}}>منصة رصد قسم المعلومات والإحصاء</div>
+          </div>}
+          {isMobile&&<div style={{fontSize:13,fontWeight:800,color:"#d4a017",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>منصة الرصد</div>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          {alerts>0&&<span style={{background:"#c0392b",color:"#fff",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>⚠️ {alerts} تنبيه</span>}
-          <span style={{fontSize:13,color:"#a8c4e8"}}>مرحباً، {user.rank?`${user.rank} / ${user.name}`:user.name}</span>
-          <button onClick={onLogout} style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>خروج</button>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+          {alerts>0&&<span style={{background:"#c0392b",color:"#fff",borderRadius:20,padding:"2px 8px",fontSize:11,fontWeight:700}}>⚠️ {alerts}</span>}
+          {!isMobile&&<span style={{fontSize:12,color:"#a8c4e8"}}>مرحباً، {user.rank?`${user.rank} / ${user.name}`:user.name}</span>}
+          <button onClick={onLogout} style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:12,fontFamily:"inherit",minHeight:36,touchAction:"manipulation"}}>خروج</button>
+          {isMobile&&<button onClick={()=>setMenuOpen(!menuOpen)} style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:16,fontFamily:"inherit",minHeight:36,minWidth:36,touchAction:"manipulation"}}>☰</button>}
         </div>
       </div>
     </div>
-    <nav style={{background:"#0d3a7a",padding:"0 20px",overflowX:"auto"}}>
+    {!isMobile&&<nav style={{background:"#0d3a7a",padding:"0 12px",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{maxWidth:1200,margin:"0 auto",display:"flex",gap:2}}>
-        {navItems.filter(n=>{if(n.adminOnly&&!isAdmin)return false;if(n.empOnly&&isAdmin)return false;return true;}).map(n=>(
+        {visibleNav.map(n=>(
           <button key={n.key} onClick={()=>setPage(n.key)}
-            style={{background:page===n.key?"rgba(212,160,23,0.25)":"transparent",color:page===n.key?"#d4a017":"#a8c4e8",border:"none",borderBottom:page===n.key?"3px solid #d4a017":"3px solid transparent",padding:"12px 14px",cursor:"pointer",fontSize:13,fontWeight:page===n.key?700:400,whiteSpace:"nowrap",fontFamily:"inherit"}}>
+            style={{background:page===n.key?"rgba(212,160,23,0.25)":"transparent",color:page===n.key?"#d4a017":"#a8c4e8",border:"none",borderBottom:page===n.key?"3px solid #d4a017":"3px solid transparent",padding:"11px 12px",cursor:"pointer",fontSize:12,fontWeight:page===n.key?700:400,whiteSpace:"nowrap",fontFamily:"inherit",minHeight:44,touchAction:"manipulation"}}>
             {n.icon} {n.label}
           </button>
         ))}
       </div>
-    </nav>
+    </nav>}
+    {isMobile&&menuOpen&&(
+      <div style={{background:"#0d3a7a",direction:"rtl",borderBottom:"2px solid #d4a017"}}>
+        {visibleNav.map(n=>(
+          <button key={n.key} onClick={()=>{setPage(n.key);setMenuOpen(false);}}
+            style={{display:"block",width:"100%",background:page===n.key?"rgba(212,160,23,0.2)":"transparent",color:page===n.key?"#d4a017":"#a8c4e8",border:"none",borderRight:page===n.key?"4px solid #d4a017":"4px solid transparent",padding:"14px 16px",cursor:"pointer",fontSize:14,fontWeight:page===n.key?700:400,textAlign:"right",fontFamily:"inherit",touchAction:"manipulation"}}>
+            {n.icon} {n.label}
+          </button>
+        ))}
+      </div>
+    )}
   </>);
 }
 
@@ -401,12 +437,12 @@ function Dashboard({db,user,isAdmin,cy,cm}){
       </div>
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:16,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:16}}>
       {cards.map((c,i)=>(
-        <div key={i} style={{background:c.bg,borderRadius:12,padding:"18px 16px",textAlign:"center",border:`1.5px solid ${c.c}22`}}>
-          <div style={{fontSize:26,marginBottom:6}}>{c.i}</div>
-          <div style={{fontSize:28,fontWeight:800,color:c.c}}>{c.v}</div>
-          <div style={{fontSize:12,color:c.c,marginTop:4,fontWeight:600}}>{c.l}</div>
+        <div key={i} style={{background:c.bg,borderRadius:12,padding:"14px 10px",textAlign:"center",border:`1.5px solid ${c.c}22`}}>
+          <div style={{fontSize:22,marginBottom:4}}>{c.i}</div>
+          <div style={{fontSize:24,fontWeight:800,color:c.c}}>{c.v}</div>
+          <div style={{fontSize:11,color:c.c,marginTop:3,fontWeight:600}}>{c.l}</div>
         </div>
       ))}
     </div>
@@ -426,7 +462,7 @@ function Dashboard({db,user,isAdmin,cy,cm}){
     {isAdmin&&(
       <div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4"}}>
         <h3 style={{margin:"0 0 14px",color:"#0a2d5e",fontSize:15,fontWeight:700}}>📊 رصيد الموظفات — {new Date().toLocaleDateString("ar-KW",{month:"long",year:"numeric"})}</h3>
-        <div style={{overflowX:"auto"}}>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:"#f0f4fa"}}>
               {["الموظفة","تأخير الشهر","الاستئذانات","إجازة مرضية/سنة","إجازة طارئة/شهر","الحالة"].map(h=>(
@@ -518,7 +554,7 @@ function AttendancePage({db,persist,user,isAdmin,cy,cm}){
     persist(newDB);setModal(null);
   };
 
-  const handleDel=(id)=>{if(!confirm("حذف؟"))return;persist({...db,attendance:db.attendance.filter(a=>a.id!==id)});};
+  const handleDel=(id)=>{if(!window.confirm("حذف؟"))return;persist({...db,attendance:db.attendance.filter(a=>a.id!==id)});};
 
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}}>
@@ -542,10 +578,11 @@ function AttendancePage({db,persist,user,isAdmin,cy,cm}){
     )}
 
     <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>
-          {["الموظفة","وقت الحضور","وقت الانصراف المقرر","وقت الانصراف الفعلي","التأخير","بصمة التواجد","الحالة","إجراءات"].map(h=>(
-            <th key={h} style={{padding:"11px 12px",textAlign:"right",fontSize:12}}>{h}</th>
+          {["الموظفة","وقت الحضور","الانصراف المقرر","الانصراف الفعلي","التأخير","بصمة التواجد","الحالة","إجراءات"].map(h=>(
+            <th key={h} style={{padding:"10px 10px",textAlign:"right",fontSize:11,whiteSpace:"nowrap"}}>{h}</th>
           ))}
         </tr></thead>
         <tbody>{empList.map((emp,i)=>{
@@ -554,24 +591,24 @@ function AttendancePage({db,persist,user,isAdmin,cy,cm}){
           const expCO=r?.checkIn?getExpectedCheckout(r.checkIn):null;
           const inPW=r?.presenceStamp&&isInPresenceWindow(r.presenceStamp);
           return(<tr key={emp.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"11px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
-            <td style={{padding:"11px 12px"}}>{r?.checkIn||"-"}</td>
-            <td style={{padding:"11px 12px",color:"#555",fontStyle:"italic"}}>{expCO||"-"}</td>
-            <td style={{padding:"11px 12px"}}>{r?.checkOut||"-"}</td>
-            <td style={{padding:"11px 12px"}}>
+            <td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
+            <td data-label="وقت الحضور" style={{padding:"10px 12px"}}>{r?.checkIn||"-"}</td>
+            <td data-label="الانصراف المقرر" style={{padding:"10px 12px",color:"#555",fontStyle:"italic"}}>{expCO||"-"}</td>
+            <td data-label="الانصراف الفعلي" style={{padding:"10px 12px"}}>{r?.checkOut||"-"}</td>
+            <td data-label="التأخير" style={{padding:"10px 12px"}}>
               {lateMin>0?<span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700}}>{lateMin} د ⏰</span>:<span style={{color:"#aaa"}}>—</span>}
             </td>
-            <td style={{padding:"11px 12px"}}>
+            <td data-label="بصمة التواجد" style={{padding:"10px 12px"}}>
               {r?.presenceStamp?(
                 <span style={{background:inPW?"#d4edda":"#e8f0fa",color:inPW?"#1a6b3a":"#555",padding:"3px 8px",borderRadius:20,fontSize:12}}>
                   {r.presenceStamp}{inPW?" 🔔":""}
                 </span>
               ):<span style={{color:"#aaa"}}>—</span>}
             </td>
-            <td style={{padding:"11px 12px"}}>{r?<Badge status={r.status} map={statusMap}/>:<span style={{color:"#aaa",fontSize:12}}>لم يسجل</span>}</td>
-            <td style={{padding:"11px 12px"}}>
+            <td data-label="الحالة" style={{padding:"10px 12px"}}>{r?<Badge status={r.status} map={statusMap}/>:<span style={{color:"#aaa",fontSize:12}}>لم يسجل</span>}</td>
+            <td className="actions-cell" style={{padding:"10px 12px"}}>
               {isAdmin&&(r?(
-                <div style={{display:"flex",gap:5}}>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   <button style={bSm} onClick={()=>openEdit(r)}>تعديل</button>
                   <button style={bRed} onClick={()=>handleDel(r.id)}>حذف</button>
                 </div>
@@ -580,6 +617,7 @@ function AttendancePage({db,persist,user,isAdmin,cy,cm}){
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
 
     {modal&&(
@@ -668,25 +706,27 @@ function LatePage({db,persist,cy,cm}){
     </div>
 
     <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>
-          {["الموظفة","التاريخ","وقت الحضور","التأخير (من 7:30)","السبب","الاعتماد","إجراءات"].map(h=>(
+          {["الموظفة","التاريخ","وقت الحضور","التأخير","السبب","الاعتماد","إجراءات"].map(h=>(
             <th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>
           ))}
         </tr></thead>
         <tbody>{db.lateRecords.map((r,i)=>{
           const emp=db.employees.find(e=>e.id===r.employeeId);
           return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
-            <td style={{padding:"12px 14px"}}>{r.date}</td>
-            <td style={{padding:"12px 14px"}}>{r.checkIn}</td>
-            <td style={{padding:"12px 14px"}}><span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700}}>{r.duration} دقيقة</span></td>
-            <td style={{padding:"12px 14px",color:"#666"}}>{r.reason||"-"}</td>
-            <td style={{padding:"12px 14px"}}>{r.approved?<span style={{background:"#d4edda",color:"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12}}>✓ معتمد</span>:<span style={{background:"#f8d7da",color:"#721c24",padding:"3px 10px",borderRadius:20,fontSize:12}}>غير معتمد</span>}</td>
-            <td style={{padding:"12px 14px"}}>{!r.approved&&<button style={bSm} onClick={()=>approve(r.id)}>اعتماد</button>}</td>
+            <td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
+            <td data-label="التاريخ" style={{padding:"10px 12px"}}>{r.date}</td>
+            <td data-label="وقت الحضور" style={{padding:"10px 12px"}}>{r.checkIn}</td>
+            <td data-label="التأخير" style={{padding:"10px 12px"}}><span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700}}>{r.duration} دقيقة</span></td>
+            <td data-label="السبب" style={{padding:"10px 12px",color:"#666"}}>{r.reason||"-"}</td>
+            <td data-label="الاعتماد" style={{padding:"10px 12px"}}>{r.approved?<span style={{background:"#d4edda",color:"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12}}>✓ معتمد</span>:<span style={{background:"#f8d7da",color:"#721c24",padding:"3px 10px",borderRadius:20,fontSize:12}}>غير معتمد</span>}</td>
+            <td className="actions-cell" style={{padding:"10px 12px"}}>{!r.approved&&<button style={bSm} onClick={()=>approve(r.id)}>اعتماد</button>}</td>
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
   </div>);
 }
@@ -732,7 +772,8 @@ function PermissionsPage({db,persist,user,isAdmin,cy,cm}){
       </div>
     );})()}
     <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>
           {["الموظفة","التاريخ","الخروج","العودة","السبب","الحالة",...(isAdmin?["إجراءات"]:[])].map(h=>(
             <th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>
@@ -741,14 +782,14 @@ function PermissionsPage({db,persist,user,isAdmin,cy,cm}){
         <tbody>{list.map((p,i)=>{
           const emp=db.employees.find(e=>e.id===p.employeeId);
           return(<tr key={p.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
-            <td style={{padding:"12px 14px"}}>{p.date}</td>
-            <td style={{padding:"12px 14px"}}>{p.exitTime}</td>
-            <td style={{padding:"12px 14px"}}>{p.returnTime}</td>
-            <td style={{padding:"12px 14px",color:"#555"}}>{p.reason}</td>
-            <td style={{padding:"12px 14px"}}><Badge status={p.status} map={permSMap}/></td>
-            {isAdmin&&<td style={{padding:"12px 14px"}}>{p.status==="pending"&&(
-              <div style={{display:"flex",gap:6}}>
+            <td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
+            <td data-label="التاريخ" style={{padding:"10px 12px"}}>{p.date}</td>
+            <td data-label="الخروج" style={{padding:"10px 12px"}}>{p.exitTime}</td>
+            <td data-label="العودة" style={{padding:"10px 12px"}}>{p.returnTime}</td>
+            <td data-label="السبب" style={{padding:"10px 12px",color:"#555"}}>{p.reason}</td>
+            <td data-label="الحالة" style={{padding:"10px 12px"}}><Badge status={p.status} map={permSMap}/></td>
+            {isAdmin&&<td className="actions-cell" style={{padding:"10px 12px"}}>{p.status==="pending"&&(
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <button style={bGreen} onClick={()=>setStatus(p.id,"approved")}>موافقة</button>
                 <button style={bRed} onClick={()=>setStatus(p.id,"rejected")}>رفض</button>
               </div>
@@ -756,6 +797,7 @@ function PermissionsPage({db,persist,user,isAdmin,cy,cm}){
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
     {modal&&(
       <Modal title="طلب استئذان جديد" onClose={()=>setModal(false)}>
@@ -801,7 +843,7 @@ function LeavesPage({db,persist,user,isAdmin,cy,cm}){
     setModal(false);
   };
 
-  const del=(id)=>{if(!confirm("حذف؟"))return;persist({...db,leaves:db.leaves.filter(l=>l.id!==id)});};
+  const del=(id)=>{if(!window.confirm("حذف؟"))return;persist({...db,leaves:db.leaves.filter(l=>l.id!==id)});};
 
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -821,7 +863,8 @@ function LeavesPage({db,persist,user,isAdmin,cy,cm}){
       </div>
     );})()}
     <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>
           {["الموظفة","التاريخ","النوع","السبب",...(isAdmin?["حذف"]:[])].map(h=>(
             <th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>
@@ -830,14 +873,15 @@ function LeavesPage({db,persist,user,isAdmin,cy,cm}){
         <tbody>{list.map((l,i)=>{
           const emp=db.employees.find(e=>e.id===l.employeeId);
           return(<tr key={l.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
-            <td style={{padding:"12px 14px"}}>{l.date}</td>
-            <td style={{padding:"12px 14px"}}><span style={{background:lc[l.type]||"#eee",color:lt[l.type]||"#333",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:600}}>{leaveMap[l.type]||l.type}</span></td>
-            <td style={{padding:"12px 14px",color:"#555"}}>{l.reason||"-"}</td>
-            {isAdmin&&<td style={{padding:"12px 14px"}}><button style={bRed} onClick={()=>del(l.id)}>حذف</button></td>}
+            <td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
+            <td data-label="التاريخ" style={{padding:"10px 12px"}}>{l.date}</td>
+            <td data-label="النوع" style={{padding:"10px 12px"}}><span style={{background:lc[l.type]||"#eee",color:lt[l.type]||"#333",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:600}}>{leaveMap[l.type]||l.type}</span></td>
+            <td data-label="السبب" style={{padding:"10px 12px",color:"#555"}}>{l.reason||"-"}</td>
+            {isAdmin&&<td className="actions-cell" style={{padding:"10px 12px"}}><button style={bRed} onClick={()=>del(l.id)}>حذف</button></td>}
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
     {modal&&(
       <Modal title="تسجيل إجازة أو غياب" onClose={()=>setModal(false)}>
@@ -1074,22 +1118,24 @@ function MyAccount({db,user,cy,cm,persist}){
 
     <div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4"}}>
       <h3 style={{color:"#0a2d5e",fontSize:15,fontWeight:700,margin:"0 0 14px"}}>📅 آخر سجلات حضوري</h3>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["التاريخ","الحضور","الانصراف المقرر","الانصراف الفعلي","التأخير","بصمة التواجد","الحالة"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"right"}}>{h}</th>)}</tr></thead>
         <tbody>{db.attendance.filter(a=>a.employeeId===user.employeeId).slice(-10).reverse().map((r,i)=>{
           const lm=r.checkIn?calcLateMinutes(r.checkIn):0;
           const eco=r.checkIn?getExpectedCheckout(r.checkIn):null;
           return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"9px 12px"}}>{r.date}</td>
-            <td style={{padding:"9px 12px"}}>{r.checkIn||"-"}</td>
-            <td style={{padding:"9px 12px",color:"#555",fontStyle:"italic"}}>{eco||"-"}</td>
-            <td style={{padding:"9px 12px"}}>{r.checkOut||"-"}</td>
-            <td style={{padding:"9px 12px"}}>{lm>0?<span style={{background:"#fff3cd",color:"#856404",padding:"2px 8px",borderRadius:20,fontSize:11}}>{lm}د</span>:"—"}</td>
-            <td style={{padding:"9px 12px"}}>{r.presenceStamp?<span style={{background:isInPresenceWindow(r.presenceStamp)?"#d4edda":"#f0f4fa",color:isInPresenceWindow(r.presenceStamp)?"#1a6b3a":"#555",padding:"2px 8px",borderRadius:20,fontSize:11}}>{r.presenceStamp}{isInPresenceWindow(r.presenceStamp)?" 🔔":""}</span>:"-"}</td>
-            <td style={{padding:"9px 12px"}}><Badge status={r.status} map={statusMap}/></td>
+            <td data-label="التاريخ" style={{padding:"9px 12px"}}>{r.date}</td>
+            <td data-label="الحضور" style={{padding:"9px 12px"}}>{r.checkIn||"-"}</td>
+            <td data-label="الانصراف المقرر" style={{padding:"9px 12px",color:"#555",fontStyle:"italic"}}>{eco||"-"}</td>
+            <td data-label="الانصراف الفعلي" style={{padding:"9px 12px"}}>{r.checkOut||"-"}</td>
+            <td data-label="التأخير" style={{padding:"9px 12px"}}>{lm>0?<span style={{background:"#fff3cd",color:"#856404",padding:"2px 8px",borderRadius:20,fontSize:11}}>{lm}د</span>:"—"}</td>
+            <td data-label="بصمة التواجد" style={{padding:"9px 12px"}}>{r.presenceStamp?<span style={{background:isInPresenceWindow(r.presenceStamp)?"#d4edda":"#f0f4fa",color:isInPresenceWindow(r.presenceStamp)?"#1a6b3a":"#555",padding:"2px 8px",borderRadius:20,fontSize:11}}>{r.presenceStamp}{isInPresenceWindow(r.presenceStamp)?" 🔔":""}</span>:"-"}</td>
+            <td data-label="الحالة" style={{padding:"9px 12px"}}><Badge status={r.status} map={statusMap}/></td>
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
   </div>);
 }
@@ -1107,28 +1153,30 @@ function EmployeesPage({db,persist,cy,cm}){
     else nDB.employees=db.employees.map(e=>e.id===form.id?form:e);
     persist(nDB);setModal(null);
   };
-  const del=(id)=>{if(!confirm("حذف؟"))return;persist({...db,employees:db.employees.filter(e=>e.id!==id)});};
+  const del=(id)=>{if(!window.confirm("حذف؟"))return;persist({...db,employees:db.employees.filter(e=>e.id!==id)});};
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <h2 style={{margin:0,color:"#0a2d5e",fontSize:20,fontWeight:800}}>👥 إدارة الموظفات</h2>
       <button style={bP} onClick={openAdd}>+ إضافة موظفة</button>
     </div>
     <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الاسم","الرقم الوظيفي","المسمى","الحالة","تأخير/شهر","استئذانات","إجراءات"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead>
         <tbody>{db.employees.map((emp,i)=>{
           const s=calcStats(emp.id,db,cy,cm);
           return(<tr key={emp.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
-            <td style={{padding:"12px 14px"}}>{emp.employeeNo}</td>
-            <td style={{padding:"12px 14px"}}>{emp.title}</td>
-            <td style={{padding:"12px 14px"}}><Badge status={emp.status} map={empSMap}/></td>
-            <td style={{padding:"12px 14px",color:s.lateOver?"#c0392b":"#555",fontWeight:s.lateOver?700:400}}>{s.lateMin}د {s.lateOver?"⚠️":""}</td>
-            <td style={{padding:"12px 14px",color:s.permOver?"#c0392b":"#555",fontWeight:s.permOver?700:400}}>{s.permMonth}/{LIMITS.permissionsPerMonth}{s.permOver?" ⚠️":""}</td>
-            <td style={{padding:"12px 14px"}}><div style={{display:"flex",gap:6}}><button style={bGold} onClick={()=>openEdit(emp)}>تعديل</button><button style={bRed} onClick={()=>del(emp.id)}>حذف</button></div></td>
+            <td data-label="الاسم" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
+            <td data-label="الرقم الوظيفي" style={{padding:"10px 12px"}}>{emp.employeeNo}</td>
+            <td data-label="المسمى" style={{padding:"10px 12px"}}>{emp.title}</td>
+            <td data-label="الحالة" style={{padding:"10px 12px"}}><Badge status={emp.status} map={empSMap}/></td>
+            <td data-label="تأخير/شهر" style={{padding:"10px 12px",color:s.lateOver?"#c0392b":"#555",fontWeight:s.lateOver?700:400}}>{s.lateMin}د {s.lateOver?"⚠️":""}</td>
+            <td data-label="استئذانات" style={{padding:"10px 12px",color:s.permOver?"#c0392b":"#555",fontWeight:s.permOver?700:400}}>{s.permMonth}/{LIMITS.permissionsPerMonth}{s.permOver?" ⚠️":""}</td>
+            <td className="actions-cell" style={{padding:"10px 12px"}}><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><button style={bGold} onClick={()=>openEdit(emp)}>تعديل</button><button style={bRed} onClick={()=>del(emp.id)}>حذف</button></div></td>
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
     {modal&&(<Modal title={modal==="add"?"إضافة موظفة":"تعديل بيانات"} onClose={()=>setModal(null)}>
       <FF label="الاسم الكامل" required><input style={iS} value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></FF>
@@ -1157,7 +1205,7 @@ function AccountsPage({db,persist}){
     else nDB.users=db.users.map(u=>u.id===form.id?{...form,employeeId:form.employeeId?parseInt(form.employeeId):null}:u);
     persist(nDB);setModal(null);
   };
-  const del=(id)=>{if(db.users.find(u=>u.id===id)?.role==="admin")return alert("لا يمكن حذف المسؤول");if(!confirm("حذف؟"))return;persist({...db,users:db.users.filter(u=>u.id!==id)});};
+  const del=(id)=>{if(db.users.find(u=>u.id===id)?.role==="admin")return alert("لا يمكن حذف المسؤول");if(!window.confirm("حذف؟"))return;persist({...db,users:db.users.filter(u=>u.id!==id)});};
   const resetPass=(id)=>{const p="Pass@"+Math.random().toString(36).slice(2,8).toUpperCase();persist({...db,users:db.users.map(u=>u.id===id?{...u,password:p}:u)});alert(`كلمة المرور الجديدة: ${p}`);};
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -1165,21 +1213,23 @@ function AccountsPage({db,persist}){
       <button style={bP} onClick={openAdd}>+ إضافة حساب</button>
     </div>
     <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الاسم","الرتبة","اسم المستخدم","كلمة المرور","الصلاحية","الموظفة","إجراءات"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead>
         <tbody>{db.users.map((u,i)=>{
           const emp=db.employees.find(e=>e.id===u.employeeId);
           return(<tr key={u.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{u.name}</td>
-            <td style={{padding:"12px 14px",color:"#856404",fontWeight:600,fontSize:12}}>{u.rank||"—"}</td>
-            <td style={{padding:"12px 14px"}}><span style={{background:"#e8f0fa",color:"#0a2d5e",padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontWeight:700}}>{u.username}</span></td>
-            <td style={{padding:"12px 14px"}}><span style={{fontFamily:"monospace",color:"#555",fontSize:12}}>{sp[u.id]?u.password:"••••••••"}</span><button onClick={()=>setSP(p=>({...p,[u.id]:!p[u.id]}))} style={{marginRight:6,background:"none",border:"none",cursor:"pointer",color:"#1a4a8a",fontSize:11,fontFamily:"inherit"}}>{sp[u.id]?"إخفاء":"إظهار"}</button></td>
-            <td style={{padding:"12px 14px"}}><span style={{background:u.role==="admin"?"#e8f0fa":"#d4edda",color:u.role==="admin"?"#0a2d5e":"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:600}}>{u.role==="admin"?"مسؤول":"موظفة"}</span></td>
-            <td style={{padding:"12px 14px",color:"#555"}}>{emp?.name||(u.role==="admin"?"—":"غير مرتبط")}</td>
-            <td style={{padding:"12px 14px"}}><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><button style={bGold} onClick={()=>openEdit(u)}>تعديل</button><button style={{...bSm,background:"linear-gradient(135deg,#5a3878,#7d4fa3)"}} onClick={()=>resetPass(u.id)}>إعادة كلمة المرور</button>{u.role!=="admin"&&<button style={bRed} onClick={()=>del(u.id)}>حذف</button>}</div></td>
+            <td data-label="الاسم" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{u.name}</td>
+            <td data-label="الرتبة" style={{padding:"10px 12px",color:"#856404",fontWeight:600,fontSize:12}}>{u.rank||"—"}</td>
+            <td data-label="اسم المستخدم" style={{padding:"10px 12px"}}><span style={{background:"#e8f0fa",color:"#0a2d5e",padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontWeight:700}}>{u.username}</span></td>
+            <td data-label="كلمة المرور" style={{padding:"10px 12px"}}><span style={{fontFamily:"monospace",color:"#555",fontSize:12}}>{sp[u.id]?u.password:"••••••••"}</span><button onClick={()=>setSP(p=>({...p,[u.id]:!p[u.id]}))} style={{marginRight:6,background:"none",border:"none",cursor:"pointer",color:"#1a4a8a",fontSize:11,fontFamily:"inherit"}}>{sp[u.id]?"إخفاء":"إظهار"}</button></td>
+            <td data-label="الصلاحية" style={{padding:"10px 12px"}}><span style={{background:u.role==="admin"?"#e8f0fa":"#d4edda",color:u.role==="admin"?"#0a2d5e":"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:600}}>{u.role==="admin"?"مسؤول":"موظفة"}</span></td>
+            <td data-label="الموظفة" style={{padding:"10px 12px",color:"#555"}}>{emp?.name||(u.role==="admin"?"—":"غير مرتبط")}</td>
+            <td className="actions-cell" style={{padding:"10px 12px"}}><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><button style={bGold} onClick={()=>openEdit(u)}>تعديل</button><button style={{...bSm,background:"linear-gradient(135deg,#5a3878,#7d4fa3)"}} onClick={()=>resetPass(u.id)}>إعادة كلمة المرور</button>{u.role!=="admin"&&<button style={bRed} onClick={()=>del(u.id)}>حذف</button>}</div></td>
           </tr>);
         })}</tbody>
       </table>
+      </div>
     </div>
     {modal&&(<Modal title={modal==="add"?"إضافة حساب":"تعديل الحساب"} onClose={()=>setModal(null)}>
       <FF label="الاسم" required><input style={iS} value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></FF>
@@ -1238,45 +1288,47 @@ function ReportsPage({db,cy,cm}){
           <div key={i} style={{background:s.bg,borderRadius:10,padding:14,textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:s.c}}>{s.v}</div><div style={{fontSize:12,color:s.c,fontWeight:600,marginTop:4}}>{s.l}</div></div>
         ))}
       </div>
-      <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","الحضور","الانصراف المقرر","الانصراف الفعلي","التأخير","بصمة التواجد","الحالة"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"right"}}>{h}</th>)}</tr></thead>
           <tbody>{recs.map((r,i)=>{const emp=db.employees.find(e=>e.id===r.employeeId);const lm=r.checkIn?calcLateMinutes(r.checkIn):0;const eco=r.checkIn?getExpectedCheckout(r.checkIn):null;return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
-            <td style={{padding:"9px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
-            <td style={{padding:"9px 12px"}}>{r.date}</td>
-            <td style={{padding:"9px 12px"}}>{r.checkIn||"-"}</td>
-            <td style={{padding:"9px 12px",fontStyle:"italic",color:"#555"}}>{eco||"-"}</td>
-            <td style={{padding:"9px 12px"}}>{r.checkOut||"-"}</td>
-            <td style={{padding:"9px 12px"}}>{lm>0?<span style={{background:"#fff3cd",color:"#856404",padding:"2px 8px",borderRadius:20,fontSize:11}}>{lm}د</span>:"—"}</td>
-            <td style={{padding:"9px 12px"}}>{r.presenceStamp||"-"}</td>
-            <td style={{padding:"9px 12px"}}><Badge status={r.status} map={statusMap}/></td>
-          </tr>);})}
-          </tbody>
+            <td data-label="الموظفة" style={{padding:"9px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
+            <td data-label="التاريخ" style={{padding:"9px 12px"}}>{r.date}</td>
+            <td data-label="الحضور" style={{padding:"9px 12px"}}>{r.checkIn||"-"}</td>
+            <td data-label="الانصراف المقرر" style={{padding:"9px 12px",fontStyle:"italic",color:"#555"}}>{eco||"-"}</td>
+            <td data-label="الانصراف الفعلي" style={{padding:"9px 12px"}}>{r.checkOut||"-"}</td>
+            <td data-label="التأخير" style={{padding:"9px 12px"}}>{lm>0?<span style={{background:"#fff3cd",color:"#856404",padding:"2px 8px",borderRadius:20,fontSize:11}}>{lm}د</span>:"—"}</td>
+            <td data-label="بصمة التواجد" style={{padding:"9px 12px"}}>{r.presenceStamp||"-"}</td>
+            <td data-label="الحالة" style={{padding:"9px 12px"}}><Badge status={r.status} map={statusMap}/></td>
+          </tr>);})}          </tbody>
         </table>
+        </div>
       </div>
     </>)}
 
-    {rt==="limits"&&(
+        {rt==="limits"&&(
       <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","تأخير/شهر","استئذانات/شهر","إجازة مرضية/سنة","إجازة طارئة/شهر","الحالة"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead>
           <tbody>{db.employees.map((emp,i)=>{const s=calcStats(emp.id,db,cy,cm);const ok=!s.lateOver&&!s.permOver&&!s.sickOver&&!s.emergOver;return(
             <tr key={emp.id} style={{background:!ok?"#fff8f0":i%2===0?"#f8faff":"#fff"}}>
-              <td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
-              <td style={{padding:"10px 14px",color:s.lateOver?"#c0392b":"#333",fontWeight:s.lateOver?700:400}}>{s.lateMin}/{LIMITS.lateMinutesPerMonth}د{s.lateOver?" ⚠️":""}</td>
-              <td style={{padding:"10px 14px",color:s.permOver?"#c0392b":"#333",fontWeight:s.permOver?700:400}}>{s.permMonth}/{LIMITS.permissionsPerMonth}{s.permOver?" ⚠️":""}</td>
-              <td style={{padding:"10px 14px",color:s.sickOver?"#c0392b":"#333",fontWeight:s.sickOver?700:400}}>{s.sickYear}/{LIMITS.sickLeavesPerYear}{s.sickOver?" ⚠️":""}</td>
-              <td style={{padding:"10px 14px",color:s.emergOver?"#c0392b":"#333",fontWeight:s.emergOver?700:400}}>{s.emergMonth}/{LIMITS.emergencyLeavesPerMonth}{s.emergOver?" ⚠️":""}</td>
-              <td style={{padding:"10px 14px"}}>{ok?<span style={{background:"#d4edda",color:"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12}}>✓ ضمن الحدود</span>:<span style={{background:"#f8d7da",color:"#721c24",padding:"3px 10px",borderRadius:20,fontSize:12}}>⚠️ تجاوز</span>}</td>
+              <td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
+              <td data-label="تأخير/شهر" style={{padding:"10px 12px",color:s.lateOver?"#c0392b":"#333",fontWeight:s.lateOver?700:400}}>{s.lateMin}/{LIMITS.lateMinutesPerMonth}د{s.lateOver?" ⚠️":""}</td>
+              <td data-label="استئذانات/شهر" style={{padding:"10px 12px",color:s.permOver?"#c0392b":"#333",fontWeight:s.permOver?700:400}}>{s.permMonth}/{LIMITS.permissionsPerMonth}{s.permOver?" ⚠️":""}</td>
+              <td data-label="إجازة مرضية/سنة" style={{padding:"10px 12px",color:s.sickOver?"#c0392b":"#333",fontWeight:s.sickOver?700:400}}>{s.sickYear}/{LIMITS.sickLeavesPerYear}{s.sickOver?" ⚠️":""}</td>
+              <td data-label="إجازة طارئة/شهر" style={{padding:"10px 12px",color:s.emergOver?"#c0392b":"#333",fontWeight:s.emergOver?700:400}}>{s.emergMonth}/{LIMITS.emergencyLeavesPerMonth}{s.emergOver?" ⚠️":""}</td>
+              <td data-label="الحالة" style={{padding:"10px 12px"}}>{ok?<span style={{background:"#d4edda",color:"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12}}>✓ ضمن الحدود</span>:<span style={{background:"#f8d7da",color:"#721c24",padding:"3px 10px",borderRadius:20,fontSize:12}}>⚠️ تجاوز</span>}</td>
             </tr>
-          );})}
-          </tbody>
+          );})}          </tbody>
         </table>
+        </div>
       </div>
     )}
-    {rt==="late"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","التأخير","السبب","الاعتماد"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.lateRecords.map((r,i)=>{const emp=db.employees.find(e=>e.id===r.employeeId);return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{r.date}</td><td style={{padding:"10px 14px"}}><span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12}}>{r.duration}د</span></td><td style={{padding:"10px 14px"}}>{r.reason||"-"}</td><td style={{padding:"10px 14px"}}>{r.approved?"✅":"⏳"}</td></tr>);})}</tbody></table></div>}
-    {rt==="leaves"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","النوع","السبب"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.leaves.map((l,i)=>{const emp=db.employees.find(e=>e.id===l.employeeId);return(<tr key={l.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{l.date}</td><td style={{padding:"10px 14px"}}>{leaveMap[l.type]}</td><td style={{padding:"10px 14px"}}>{l.reason||"-"}</td></tr>);})}</tbody></table></div>}
-    {rt==="permissions"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","الخروج","العودة","السبب","الحالة"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.permissions.map((p,i)=>{const emp=db.employees.find(e=>e.id===p.employeeId);return(<tr key={p.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{p.date}</td><td style={{padding:"10px 14px"}}>{p.exitTime}</td><td style={{padding:"10px 14px"}}>{p.returnTime}</td><td style={{padding:"10px 14px"}}>{p.reason}</td><td style={{padding:"10px 14px"}}><Badge status={p.status} map={permSMap}/></td></tr>);})}</tbody></table></div>}
+    {rt==="late"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","التأخير","السبب","الاعتماد"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.lateRecords.map((r,i)=>{const emp=db.employees.find(e=>e.id===r.employeeId);return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td data-label="التاريخ" style={{padding:"10px 12px"}}>{r.date}</td><td data-label="التأخير" style={{padding:"10px 12px"}}><span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12}}>{r.duration}د</span></td><td data-label="السبب" style={{padding:"10px 12px"}}>{r.reason||"-"}</td><td data-label="الاعتماد" style={{padding:"10px 12px"}}>{r.approved?"✅":"⏳"}</td></tr>);})}</tbody></table></div></div>}
+    {rt==="leaves"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","النوع","السبب"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.leaves.map((l,i)=>{const emp=db.employees.find(e=>e.id===l.employeeId);return(<tr key={l.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td data-label="التاريخ" style={{padding:"10px 12px"}}>{l.date}</td><td data-label="النوع" style={{padding:"10px 12px"}}>{leaveMap[l.type]}</td><td data-label="السبب" style={{padding:"10px 12px"}}>{l.reason||"-"}</td></tr>);})}</tbody></table></div></div>}
+    {rt==="permissions"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="resp-table" style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","الخروج","العودة","السبب","الحالة"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.permissions.map((p,i)=>{const emp=db.employees.find(e=>e.id===p.employeeId);return(<tr key={p.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td data-label="الموظفة" style={{padding:"10px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td data-label="التاريخ" style={{padding:"10px 12px"}}>{p.date}</td><td data-label="الخروج" style={{padding:"10px 12px"}}>{p.exitTime}</td><td data-label="العودة" style={{padding:"10px 12px"}}>{p.returnTime}</td><td data-label="السبب" style={{padding:"10px 12px"}}>{p.reason}</td><td data-label="الحالة" style={{padding:"10px 12px"}}><Badge status={p.status} map={permSMap}/></td></tr>);})}</tbody></table></div></div>}
   </div>);
 }
 
@@ -1380,7 +1432,7 @@ function MessagesPage({db,persist}){
   };
 
   const clearHistory=()=>{
-    if(!confirm("مسح سجل الرسائل؟"))return;
+    if(!window.confirm("مسح سجل الرسائل؟"))return;
     setHistory([]);
     localStorage.removeItem("moi_msg_history");
   };
