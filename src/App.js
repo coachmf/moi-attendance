@@ -408,7 +408,7 @@ export default function App(){
   const myStats=user.employeeId?calcStats(user.employeeId,db,cy,cm):null;
   return(
     <div style={{minHeight:"100vh",background:"#f0f4fa",fontFamily:"'Segoe UI',Tahoma,Arial,sans-serif",direction:"rtl"}}>
-      <Header onLogout={logout} user={user} page={page} setPage={setPage} isAdmin={isAdmin} myStats={myStats}/>
+      <Header onLogout={logout} user={user} page={page} setPage={setPage} isAdmin={isAdmin} myStats={myStats} db={db}/>
       <div style={{maxWidth:1200,margin:"0 auto",padding:"12px 8px"}}>
         {page==="dashboard"   && <Dashboard   db={db} user={user} isAdmin={isAdmin} cy={cy} cm={cm}/>}
         {page==="myaccount"   && !isAdmin && <MyAccount db={db} user={user} cy={cy} cm={cm} persist={persist}/>}
@@ -466,7 +466,7 @@ const navItems=[
   {key:"messages",    label:"الرسائل",         icon:"📨",adminOnly:true},
   {key:"reminders",   label:"التنبيهات",       icon:"🔔",adminOnly:false,empOnly:false},
 ];
-function Header({onLogout,user,page,setPage,isAdmin,myStats}){
+function Header({onLogout,user,page,setPage,isAdmin,myStats,db}){
   const alerts=myStats?[myStats.lateOver,myStats.permOver,myStats.sickOver,myStats.emergOver].filter(Boolean).length:0;
   return(<>
     <div style={{background:"linear-gradient(135deg,#06173a,#0a2d5e)",color:"#fff",padding:"10px 20px",direction:"rtl"}}>
