@@ -1,0 +1,119 @@
+/* ===== Mobile Responsive Styles ===== */
+
+@media screen and (max-width: 768px) {
+
+  /* ===== Table → Card Layout ===== */
+  .mobile-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  /* Convert tables to card layout on mobile */
+  .resp-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  /* Hide table headers on mobile */
+  .resp-table thead {
+    display: none;
+  }
+
+  /* Each row becomes a card */
+  .resp-table tbody tr {
+    display: block;
+    background: #fff !important;
+    border: 1.5px solid #e0e8f4;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 4px rgba(10,45,94,0.07);
+  }
+
+  /* Each cell becomes a flex row with label */
+  .resp-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0 !important;
+    border-bottom: 1px solid #f0f4fa;
+    font-size: 13px;
+    min-height: 32px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .resp-table tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* Label shown before each cell value */
+  .resp-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: #0a2d5e;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  /* Action buttons row */
+  .resp-table tbody td.actions-cell {
+    justify-content: flex-end;
+    padding-top: 8px !important;
+    gap: 6px;
+  }
+
+  .resp-table tbody td.actions-cell::before {
+    display: none;
+  }
+
+  /* ===== General Layout ===== */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .page-header h2 {
+    font-size: 17px !important;
+  }
+
+  /* ===== Filters row ===== */
+  .filters-row {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .filters-row input,
+  .filters-row select {
+    width: 100% !important;
+  }
+
+  /* ===== Dashboard cards ===== */
+  .dashboard-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* ===== Modals ===== */
+  .modal-inner {
+    padding: 12px !important;
+  }
+
+  /* ===== Form buttons row ===== */
+  .btn-row {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .btn-row button {
+    width: 100% !important;
+  }
+}
+
+@media screen and (max-width: 400px) {
+  .dashboard-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
