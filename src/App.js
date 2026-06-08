@@ -89,6 +89,56 @@ function useReminderAlerts(user, db) {
 }
 const FB_URL = "https://moi-attendance-c86f3-default-rtdb.asia-southeast1.firebasedatabase.app/attendance_data.json";
 
+// ===== قراءة الوثيقة الطبية بالذكاء الاصطناعي =====
+async function readMedicalDocument(base64Data, mimeType) {
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 500,
+        messages: [{
+          role: "user",
+          content: [
+            {type:"image", source:{type:"base64", media_type:mimeType, data:base64Data}},
+            {type:"text", text:'اقرأ هذه الوثيقة الطبية وأعد JSON فقط بهذا الشكل بدون أي نص إضافي: {"startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","days":0,"diagnosis":"","doctor":"","hospital":""}  إذا لم تجد معلومة اكتب null'}
+          ]
+        }]
+      })
+    });
+    const data = await response.json();
+    const text = data.content?.[0]?.text || "";
+    return JSON.parse(text.replace(/```json|```/g,"").trim());
+  } catch(e) { return null; }
+}
+
+// ===== إشعارات المسؤولين =====
+function addNotification(db, msg) {
+  return {...db, notifications:[...(db.notifications||[]), {id:Date.now(), message:msg, date:new Date().toLocaleString("ar-KW"), read:false}]};
+}
+
+// ===== تصفير التأخير الشهري =====
+function checkMonthlyReset(db) {
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  const lastReset = localStorage.getItem("last_monthly_reset");
+  if (lastReset === currentMonth) return false;
+  localStorage.setItem("last_monthly_reset", currentMonth);
+  // حفظ إحصائيات الشهر السابق
+  if (lastReset) {
+    const history = JSON.parse(localStorage.getItem("late_history")||"{}");
+    const stats = {};
+    db.employees.forEach(emp => {
+      const recs = db.lateRecords.filter(l=>l.employeeId===emp.id&&l.date.startsWith(lastReset));
+      const total = recs.reduce((s,l)=>s+l.duration,0);
+      if(total>0) stats[emp.id]={name:emp.name,totalLate:total,count:recs.length};
+    });
+    if(Object.keys(stats).length>0){ history[lastReset]=stats; localStorage.setItem("late_history",JSON.stringify(history)); }
+  }
+  return true;
+}
+
 async function fbRead() {
   try {
     const r = await fetch(FB_URL);
@@ -108,7 +158,7 @@ async function fbWrite(data) {
 }
 const MOI_LOGO = "data:image/jpeg;base64,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";
 
-const DB_KEY = "moi_attendance_db_v9";
+const DB_KEY = "moi_attendance_db_v10";
 
 // ===== قواعد الدوام =====
 // الحضور 7:30 أو قبله → الانصراف 12:45
@@ -141,6 +191,12 @@ function timeToMinutes(t) {
   if (!t) return 0;
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
+}
+
+function minutesToTime(m) {
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  return `${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}`;
 }
 
 // احتساب دقائق التأخير — فقط ما بعد 8:00
@@ -258,7 +314,7 @@ function useFirebaseSync(setDB) {
       });
     }, 10000);
     return () => clearInterval(interval);
-  }, [setDB]);
+  }, []);
 }
 
 function calcStats(empId, db, year, month) {
@@ -339,6 +395,12 @@ export default function App(){
   useFirebaseSync(setDB);
   // نظام التنبيهات التلقائية
   useReminderAlerts(user, db);
+  // تصفير التأخير الشهري
+  useEffect(()=>{
+    if(checkMonthlyReset(db)){
+      console.log("Monthly late minutes reset done");
+    }
+  },[]);
   const login=()=>{const u=db.users.find(u=>u.username===lf.username&&u.password===lf.password);if(u){setUser(u);setPage("dashboard");setLE("");}else setLE("اسم المستخدم أو كلمة المرور غير صحيحة");};
   const logout=()=>{setUser(null);setPage("login");setLF({username:"",password:""});};
   if(!user) return <LoginPage form={lf} setForm={setLF} onLogin={login} error={le} db={db}/>;
@@ -418,6 +480,11 @@ function Header({onLogout,user,page,setPage,isAdmin,myStats}){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           {alerts>0&&<span style={{background:"#c0392b",color:"#fff",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>⚠️ {alerts} تنبيه</span>}
+          {isAdmin&&(db.notifications||[]).filter(n=>!n.read).length>0&&(
+            <span style={{background:"#d4a017",color:"#fff",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700}}>
+              🔔 {(db.notifications||[]).filter(n=>!n.read).length} إشعار جديد
+            </span>
+          )}
           <span style={{fontSize:13,color:"#a8c4e8"}}>مرحباً، {user.rank?`${user.rank} / ${user.name}`:user.name}</span>
           <button onClick={onLogout} style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>خروج</button>
         </div>
@@ -507,6 +574,21 @@ function Dashboard({db,user,isAdmin,cy,cm}){
       </div>
     )}
 
+    {isAdmin&&(db.notifications||[]).filter(n=>!n.read).length>0&&(
+      <div style={{background:"#fff3cd",border:"1.5px solid #ffc107",borderRadius:12,padding:16,marginBottom:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <h3 style={{color:"#856404",margin:0,fontSize:14}}>🔔 الإشعارات الجديدة ({(db.notifications||[]).filter(n=>!n.read).length})</h3>
+          <button onClick={()=>persist({...db,notifications:(db.notifications||[]).map(n=>({...n,read:true}))})}
+            style={{...bSm,background:"#856404",fontSize:11,padding:"4px 10px"}}>تحديد الكل كمقروء</button>
+        </div>
+        {(db.notifications||[]).filter(n=>!n.read).slice(0,5).map(n=>(
+          <div key={n.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #ffeaa7",fontSize:13}}>
+            <span style={{color:"#856404"}}>{n.message}</span>
+            <span style={{fontSize:11,color:"#aaa",whiteSpace:"nowrap",marginRight:8}}>{n.date}</span>
+          </div>
+        ))}
+      </div>
+    )}
     {isAdmin&&(
       <div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4"}}>
         <h3 style={{margin:"0 0 14px",color:"#0a2d5e",fontSize:15,fontWeight:700}}>📊 رصيد الموظفات — {new Date().toLocaleDateString("ar-KW",{month:"long",year:"numeric"})}</h3>
@@ -602,7 +684,7 @@ function AttendancePage({db,persist,user,isAdmin,cy,cm}){
     persist(newDB);setModal(null);
   };
 
-  const handleDel=(id)=>{if(!window.confirm("حذف؟"))return;persist({...db,attendance:db.attendance.filter(a=>a.id!==id)});};
+  const handleDel=(id)=>{if(!confirm("حذف؟"))return;persist({...db,attendance:db.attendance.filter(a=>a.id!==id)});};
 
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:12}}>
@@ -874,18 +956,66 @@ function LeavesPage({db,persist,user,isAdmin,cy,cm}){
     setModal(true);
   };
 
+  const [aiReading, setAiReading] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+
+  const handleFileUpload = async (file) => {
+    if(!file) return;
+    if(file.size > 5*1024*1024){alert("حجم الملف كبير - الحد الأقصى 5MB");return;}
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      const base64 = dataUrl.split(",")[1];
+      const mimeType = file.type;
+      setForm(f=>({...f, attachment:dataUrl, attachmentName:file.name}));
+      // قراءة AI للوثائق الطبية
+      if((form.type==="sick"||form.type==="emergency") && (file.type.startsWith("image/")||file.type==="application/pdf")){
+        setAiReading(true);
+        setAiResult(null);
+        const result = await readMedicalDocument(base64, mimeType);
+        setAiReading(false);
+        if(result){
+          setAiResult(result);
+          // تعبئة تلقائية للتاريخ والأيام
+          if(result.startDate) setForm(f=>({...f, date:result.startDate, aiDays:result.days, aiDiagnosis:result.diagnosis, aiDoctor:result.doctor, aiHospital:result.hospital}));
+          alert(`✅ تم قراءة الوثيقة تلقائياً!
+التشخيص: ${result.diagnosis||"—"}
+من: ${result.startDate||"—"} إلى: ${result.endDate||"—"}
+عدد الأيام: ${result.days||"—"}
+الطبيب: ${result.doctor||"—"}
+المستشفى: ${result.hospital||"—"}`);
+        } else {
+          alert("⚠️ لم يتمكن النظام من قراءة الوثيقة تلقائياً. يرجى إدخال البيانات يدوياً.");
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const save=()=>{
     if(!form.date||!form.type)return alert("يرجى ملء الحقول");
     const empId=parseInt(form.employeeId);
     const s=calcStats(empId,db,cy,cm);
-    if(form.type==="sick"&&s.sickOver&&!isAdmin){alert(`⚠️ استنفدت رصيد الإجازة المرضية (${LIMITS.sickLeavesPerYear} أيام/سنة)`);return;}
-    if(form.type==="emergency"&&s.emergOver&&!isAdmin){alert(`⚠️ استنفدت رصيد الإجازة الطارئة (${LIMITS.emergencyLeavesPerMonth} أيام/شهر)`);return;}
+    if(form.type==="sick"&&s.sickOver&&!isAdmin){alert(`استنفدت رصيد الإجازة المرضية (${LIMITS.sickLeavesPerYear} أيام/سنة)`);return;}
+    if(form.type==="emergency"&&s.emergOver&&!isAdmin){alert(`استنفدت رصيد الإجازة الطارئة (${LIMITS.emergencyLeavesPerMonth} أيام/شهر)`);return;}
     const nid=Math.max(...db.leaves.map(l=>l.id),0)+1;
-    persist({...db,leaves:[...db.leaves,{...form,id:nid,employeeId:empId,attachment:false}]});
+    const emp=db.employees.find(e=>e.id===empId);
+    const newLeave={...form,id:nid,employeeId:empId,attachment:form.attachment||false,attachmentName:form.attachmentName||""};
+    let newDB={...db,leaves:[...db.leaves,newLeave]};
+    // إشعار المسؤولين بالإجازة المرضية والطارئة
+    if(form.type==="sick"||form.type==="emergency"){
+      const typeName=form.type==="sick"?"إجازة مرضية":"إجازة طارئة";
+      const days=form.aiDays?` (${form.aiDays} أيام)`:"";
+      const diag=form.aiDiagnosis?` - ${form.aiDiagnosis}`:"";
+      const msg=`📋 طلب ${typeName} من ${emp?.name} - التاريخ: ${form.date}${days}${diag}`;
+      newDB=addNotification(newDB,msg);
+    }
+    persist(newDB);
     setModal(false);
+    setAiResult(null);
   };
 
-  const del=(id)=>{if(!window.confirm("حذف؟"))return;persist({...db,leaves:db.leaves.filter(l=>l.id!==id)});};
+  const del=(id)=>{if(!confirm("حذف؟"))return;persist({...db,leaves:db.leaves.filter(l=>l.id!==id)});};
 
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -946,15 +1076,20 @@ function LeavesPage({db,persist,user,isAdmin,cy,cm}){
         {(form.type==="sick"||form.type==="emergency")&&(
           <FF label="إرفاق مستند (صورة أو PDF) 📎">
             <input type="file" accept="image/*,.pdf" style={{...iS,padding:"6px"}}
-              onChange={e=>{
-                const file=e.target.files[0];
-                if(!file)return;
-                if(file.size>5*1024*1024){alert("حجم الملف كبير - الحد الأقصى 5MB");return;}
-                const reader=new FileReader();
-                reader.onload=ev=>setForm({...form,attachment:ev.target.result,attachmentName:file.name});
-                reader.readAsDataURL(file);
-              }}/>
-            {form.attachmentName&&<div style={{fontSize:11,color:"#1a6b3a",marginTop:4}}>✅ {form.attachmentName}</div>}
+              onChange={e=>handleFileUpload(e.target.files[0])}/>
+            {aiReading&&<div style={{background:"#e8f0fa",padding:"10px",borderRadius:8,marginTop:8,fontSize:13,color:"#0a2d5e",textAlign:"center"}}>⏳ جاري قراءة الوثيقة بالذكاء الاصطناعي...</div>}
+            {aiResult&&(
+              <div style={{background:"#d4edda",border:"1.5px solid #28a745",borderRadius:10,padding:"12px",marginTop:8,fontSize:12}}>
+                <div style={{fontWeight:700,color:"#1a6b3a",marginBottom:6}}>✅ تم استخراج البيانات تلقائياً:</div>
+                {aiResult.diagnosis&&<div>🏥 التشخيص: <strong>{aiResult.diagnosis}</strong></div>}
+                {aiResult.startDate&&<div>📅 من: <strong>{aiResult.startDate}</strong></div>}
+                {aiResult.endDate&&<div>📅 إلى: <strong>{aiResult.endDate}</strong></div>}
+                {aiResult.days&&<div>🗓️ عدد الأيام: <strong>{aiResult.days}</strong></div>}
+                {aiResult.doctor&&<div>👨‍⚕️ الطبيب: <strong>{aiResult.doctor}</strong></div>}
+                {aiResult.hospital&&<div>🏨 المستشفى: <strong>{aiResult.hospital}</strong></div>}
+              </div>
+            )}
+            {form.attachmentName&&!aiReading&&<div style={{fontSize:11,color:"#1a6b3a",marginTop:4}}>📎 {form.attachmentName}</div>}
           </FF>
         )}
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -997,6 +1132,7 @@ function MyAccount({db,user,cy,cm,persist}){
     const lateStart=timeToMinutes("08:01");
     const permThreshold=timeToMinutes("08:30");
     const lateMin=calcLateMinutes(nowTime);
+    const status=getAttendanceStatus(nowTime);
     const expectedCO=getExpectedCheckout(nowTime);
     const stats=calcStats(user.employeeId,db,cy,cm);
     if(ci<=timeToMinutes("07:29")){
@@ -1198,124 +1334,74 @@ function MyAccount({db,user,cy,cm,persist}){
 }
 
 // ===== CHANGE PASSWORD FORM =====
-function ChangePasswordForm({user,persist,db}){
-  const [form,setForm]=useState({currentPass:"",newUser:"",newPass:"",confirm:""});
+  const [form,setForm]=useState({current:"",newPass:"",confirm:""});
   const [msg,setMsg]=useState(null);
   const [show,setShow]=useState({c:false,n:false,cf:false});
-  const u=db.users.find(x=>x.id===user.id);
 
   const handleSave=()=>{
     setMsg(null);
-    if(!form.currentPass){setMsg({t:"error",m:"يرجى إدخال كلمة المرور الحالية"});return;}
-    if(u.password!==form.currentPass){setMsg({t:"error",m:"كلمة المرور الحالية غير صحيحة"});return;}
-    let newDB={...db}; let changes=[];
-    if(form.newUser.trim()&&form.newUser.trim()!==u.username){
-      if(db.users.find(x=>x.username===form.newUser.trim()&&x.id!==user.id)){setMsg({t:"error",m:"اسم المستخدم موجود مسبقاً"});return;}
-      newDB={...newDB,users:newDB.users.map(x=>x.id===user.id?{...x,username:form.newUser.trim()}:x)};
-      changes.push("اسم المستخدم");
+    const u=db.users.find(x=>x.id===user.id);
+    if(!form.current||!form.newPass||!form.confirm){
+      setMsg({t:"error",m:"يرجى ملء جميع الحقول"});return;
     }
-    if(form.newPass){
-      if(form.newPass.length<6){setMsg({t:"error",m:"كلمة المرور 6 أحرف على الأقل"});return;}
-      if(form.newPass!==form.confirm){setMsg({t:"error",m:"كلمة المرور وتأكيدها غير متطابقتين"});return;}
-      newDB={...newDB,users:newDB.users.map(x=>x.id===user.id?{...x,password:form.newPass}:x)};
-      changes.push("كلمة المرور");
+    if(u.password!==form.current){
+      setMsg({t:"error",m:"كلمة المرور الحالية غير صحيحة"});return;
     }
-    if(changes.length===0){setMsg({t:"error",m:"لم تقم بأي تغيير"});return;}
+    if(form.newPass.length<6){
+      setMsg({t:"error",m:"كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل"});return;
+    }
+    if(form.newPass!==form.confirm){
+      setMsg({t:"error",m:"كلمة المرور الجديدة وتأكيدها غير متطابقتين"});return;
+    }
+    const newDB={...db,users:db.users.map(x=>x.id===user.id?{...x,password:form.newPass}:x)};
     persist(newDB);
-    setForm({currentPass:"",newUser:"",newPass:"",confirm:""});
-    setMsg({t:"success",m:"✅ تم تحديث: "+changes.join(" و ")});
+    setForm({current:"",newPass:"",confirm:""});
+    setMsg({t:"success",m:"✅ تم تغيير كلمة المرور بنجاح"});
     setTimeout(()=>setMsg(null),4000);
   };
 
-  const EyeBtn=({k})=>(<button type="button" onClick={()=>setShow(p=>({...p,[k]:!p[k]}))} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#888",fontSize:16,padding:0}}>{show[k]?"🙈":"👁️"}</button>);
+  const EyeBtn=({k})=>(
+    <button type="button" onClick={()=>setShow(p=>({...p,[k]:!p[k]}))}
+      style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#888",fontSize:16,padding:0}}>
+      {show[k]?"🙈":"👁️"}
+    </button>
+  );
 
   return(<div>
-    <div style={{background:"#e8f0fa",borderRadius:8,padding:"10px 12px",marginBottom:14,fontSize:12,color:"#0a2d5e"}}>اسم المستخدم الحالي: <strong>{u?.username}</strong></div>
-    <FF label="كلمة المرور الحالية (للتحقق)" required><div style={{position:"relative"}}><input type={show.c?"text":"password"} style={{...iS,paddingLeft:36,fontSize:13}} value={form.currentPass} onChange={e=>setForm({...form,currentPass:e.target.value})} placeholder="••••••••"/><EyeBtn k="c"/></div></FF>
-    <FF label="اسم المستخدم الجديد (اختياري)"><input style={{...iS,fontSize:13}} value={form.newUser} onChange={e=>setForm({...form,newUser:e.target.value})} placeholder="اتركه فارغاً إذا لا تريد تغييره"/></FF>
-    <FF label="كلمة المرور الجديدة (اختياري)"><div style={{position:"relative"}}><input type={show.n?"text":"password"} style={{...iS,paddingLeft:36,fontSize:13}} value={form.newPass} onChange={e=>setForm({...form,newPass:e.target.value})} placeholder="اتركها فارغة إذا لا تريد تغييرها"/><EyeBtn k="n"/></div></FF>
-    {form.newPass&&<FF label="تأكيد كلمة المرور"><div style={{position:"relative"}}><input type={show.cf?"text":"password"} style={{...iS,paddingLeft:36,fontSize:13}} value={form.confirm} onChange={e=>setForm({...form,confirm:e.target.value})} placeholder="••••••••"/><EyeBtn k="cf"/></div></FF>}
-    {msg&&<div style={{background:msg.t==="error"?"#f8d7da":"#d4edda",color:msg.t==="error"?"#721c24":"#1a6b3a",padding:"8px 12px",borderRadius:8,fontSize:12,marginBottom:10,fontWeight:600}}>{msg.m}</div>}
-    <button style={{...bP,width:"100%",padding:"9px",fontSize:13}} onClick={handleSave}>💾 حفظ التغييرات</button>
-  </div>);
-}
-
-// ===== REMINDERS PAGE =====
-function RemindersPage({user,db}){
-  const [reminders,setReminders]=useState(()=>loadReminders(user.id));
-  const [saved,setSaved]=useState(false);
-  const today=new Date().toISOString().split("T")[0];
-  const todayRec=db.attendance.find(a=>a.employeeId===user.employeeId&&a.date===today);
-  const MINS=[5,10,15,20,25,30];
-
-  const calcTime=(base,before)=>{
-    const [h,m]=base.split(":").map(Number);
-    const t=h*60+m-before;
-    return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`;
-  };
-
-  const update=(key,field,value)=>{
-    const bases={checkIn:"07:30",presence:"09:31",checkOut:"12:45"};
-    const upd={...reminders,[key]:{...reminders[key],[field]:value}};
-    if(field==="minutes") upd[key].time=calcTime(bases[key],value);
-    setReminders(upd);
-  };
-
-  const save=()=>{
-    saveReminders(user.id,reminders);
-    if(Notification.permission==="default") Notification.requestPermission();
-    setSaved(true); setTimeout(()=>setSaved(false),3000);
-  };
-
-  const alarms=[
-    {key:"checkIn",  label:"⏰ تنبيه الحضور",      desc:"تنبيه قبل بداية الدوام 7:30",       done:!!todayRec?.checkIn},
-    {key:"presence", label:"🔔 تنبيه التواجد",      desc:"تنبيه لبصمة التواجد الإلزامية",     done:!!todayRec?.presenceStamp},
-    {key:"checkOut", label:"🚪 تنبيه الانصراف",     desc:"تنبيه قبل موعد الانصراف",            done:!!todayRec?.checkOut},
-  ];
-
-  return(<div>
-    <h2 style={{color:"#0a2d5e",fontSize:20,fontWeight:800,marginBottom:8}}>🔔 إعدادات التنبيهات</h2>
-    <div style={{background:"#e8f0fa",borderRadius:10,padding:"10px 16px",marginBottom:20,fontSize:13,color:"#0a2d5e"}}>
-      ℹ️ التنبيهات تعمل تلقائياً عند حلول الوقت — أبقِ التطبيق مفتوحاً في المتصفح.
-    </div>
-    <div style={{display:"grid",gap:14,marginBottom:20}}>
-      {alarms.map(a=>(
-        <div key={a.key} style={{background:"#fff",borderRadius:12,padding:18,border:"1.5px solid #e0e8f4"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:"#0a2d5e"}}>{a.label}</div>
-              <div style={{fontSize:11,color:"#888",marginTop:2}}>{a.desc}</div>
-              {a.done&&<div style={{fontSize:11,color:"#1a6b3a",fontWeight:600,marginTop:4}}>✅ تم التسجيل اليوم</div>}
-            </div>
-            <div style={{position:"relative",width:44,height:24,background:reminders[a.key].enabled?"#0a2d5e":"#ccc",borderRadius:12,cursor:"pointer",flexShrink:0}} onClick={()=>update(a.key,"enabled",!reminders[a.key].enabled)}>
-              <div style={{position:"absolute",top:2,right:reminders[a.key].enabled?2:22,width:20,height:20,background:"#fff",borderRadius:"50%",transition:"right 0.3s"}}/>
-            </div>
-          </div>
-          {reminders[a.key].enabled&&(
-            <div>
-              <div style={{fontSize:12,color:"#555",marginBottom:8,fontWeight:600}}>التنبيه قبل الموعد بـ:</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {MINS.map(m=>(
-                  <button key={m} onClick={()=>update(a.key,"minutes",m)}
-                    style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",
-                      background:reminders[a.key].minutes===m?"linear-gradient(135deg,#0a2d5e,#1a4a8a)":"#f0f4fa",
-                      color:reminders[a.key].minutes===m?"#fff":"#0a2d5e"}}>
-                    {m}د
-                  </button>
-                ))}
-              </div>
-              <div style={{marginTop:10,background:"#f0f4fa",borderRadius:8,padding:"8px 12px",fontSize:13}}>
-                🕐 وقت التنبيه: <strong style={{color:"#0a2d5e"}}>{reminders[a.key].time}</strong>
-              </div>
-            </div>
-          )}
+    {[
+      {key:"c",  label:"كلمة المرور الحالية", val:form.current,  onChange:v=>setForm({...form,current:v})},
+      {key:"n",  label:"كلمة المرور الجديدة", val:form.newPass,  onChange:v=>setForm({...form,newPass:v})},
+      {key:"cf", label:"تأكيد كلمة المرور",   val:form.confirm,  onChange:v=>setForm({...form,confirm:v})},
+    ].map(f=>(
+      <div key={f.key} style={{marginBottom:10,position:"relative"}}>
+        <label style={{display:"block",fontSize:12,color:"#888",marginBottom:4}}>{f.label}</label>
+        <div style={{position:"relative"}}>
+          <input
+            type={show[f.key]?"text":"password"}
+            style={{...iS,paddingLeft:36,fontSize:13}}
+            value={f.val}
+            onChange={e=>f.onChange(e.target.value)}
+            placeholder="••••••••"
+          />
+          <EyeBtn k={f.key}/>
         </div>
-      ))}
-    </div>
-    {saved&&<div style={{background:"#d4edda",color:"#1a6b3a",padding:"10px",borderRadius:8,fontSize:13,fontWeight:700,textAlign:"center",marginBottom:12}}>✅ تم حفظ التنبيهات</div>}
-    <button style={{...bP,width:"100%",padding:14,fontSize:15}} onClick={save}>💾 حفظ الإعدادات</button>
+      </div>
+    ))}
+
+    {msg&&(
+      <div style={{
+        background:msg.t==="error"?"#f8d7da":"#d4edda",
+        color:msg.t==="error"?"#721c24":"#1a6b3a",
+        padding:"8px 12px",borderRadius:8,fontSize:12,marginBottom:10,fontWeight:600
+      }}>{msg.m}</div>
+    )}
+
+    <button style={{...bP,width:"100%",padding:"9px",fontSize:13}} onClick={handleSave}>
+      🔒 حفظ كلمة المرور الجديدة
+    </button>
   </div>);
 }
+
 // ===== EMPLOYEES PAGE =====
 function EmployeesPage({db,persist,cy,cm}){
   const [modal,setModal]=useState(null);
@@ -1329,7 +1415,7 @@ function EmployeesPage({db,persist,cy,cm}){
     else nDB.employees=db.employees.map(e=>e.id===form.id?form:e);
     persist(nDB);setModal(null);
   };
-  const del=(id)=>{if(!window.confirm("حذف؟"))return;persist({...db,employees:db.employees.filter(e=>e.id!==id)});};
+  const del=(id)=>{if(!confirm("حذف؟"))return;persist({...db,employees:db.employees.filter(e=>e.id!==id)});};
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
       <h2 style={{margin:0,color:"#0a2d5e",fontSize:20,fontWeight:800}}>👥 إدارة الموظفات</h2>
@@ -1379,7 +1465,7 @@ function AccountsPage({db,persist}){
     else nDB.users=db.users.map(u=>u.id===form.id?{...form,employeeId:form.employeeId?parseInt(form.employeeId):null}:u);
     persist(nDB);setModal(null);
   };
-  const del=(id)=>{if(db.users.find(u=>u.id===id)?.role==="admin")return alert("لا يمكن حذف المسؤول");if(!window.confirm("حذف؟"))return;persist({...db,users:db.users.filter(u=>u.id!==id)});};
+  const del=(id)=>{if(db.users.find(u=>u.id===id)?.role==="admin")return alert("لا يمكن حذف المسؤول");if(!confirm("حذف؟"))return;persist({...db,users:db.users.filter(u=>u.id!==id)});};
   const resetPass=(id)=>{const p="Pass@"+Math.random().toString(36).slice(2,8).toUpperCase();persist({...db,users:db.users.map(u=>u.id===id?{...u,password:p}:u)});alert(`كلمة المرور الجديدة: ${p}`);};
   return(<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -1496,6 +1582,29 @@ function ReportsPage({db,cy,cm}){
         </table>
       </div>
     )}
+    {rt==="late"&&(
+      <div style={{marginBottom:16}}>
+        {(()=>{
+          const history=JSON.parse(localStorage.getItem("late_history")||"{}");
+          const months=Object.keys(history).sort().reverse().slice(0,3);
+          if(months.length===0) return null;
+          return(<div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4",marginBottom:16}}>
+            <h3 style={{color:"#0a2d5e",fontSize:15,fontWeight:700,margin:"0 0 14px"}}>📊 إحصائيات التأخير الشهرية المحفوظة</h3>
+            {months.map(m=>(
+              <div key={m} style={{marginBottom:12}}>
+                <div style={{fontWeight:700,color:"#0a2d5e",marginBottom:6,fontSize:13}}>{m}</div>
+                {Object.values(history[m]).map((s,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 8px",background:"#f8faff",borderRadius:6,marginBottom:4}}>
+                    <span>{s.name}</span>
+                    <span style={{color:s.totalLate>LIMITS.lateMinutesPerMonth?"#c0392b":"#555",fontWeight:700}}>{s.totalLate} دقيقة ({s.count} مرة)</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>);
+        })()}
+      </div>
+    )}
     {rt==="late"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","التأخير","السبب","الاعتماد"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.lateRecords.map((r,i)=>{const emp=db.employees.find(e=>e.id===r.employeeId);return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{r.date}</td><td style={{padding:"10px 14px"}}><span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12}}>{r.duration}د</span></td><td style={{padding:"10px 14px"}}>{r.reason||"-"}</td><td style={{padding:"10px 14px"}}>{r.approved?"✅":"⏳"}</td></tr>);})}</tbody></table></div>}
     {rt==="leaves"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","النوع","السبب"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.leaves.map((l,i)=>{const emp=db.employees.find(e=>e.id===l.employeeId);return(<tr key={l.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{l.date}</td><td style={{padding:"10px 14px"}}>{leaveMap[l.type]}</td><td style={{padding:"10px 14px"}}>{l.reason||"-"}</td></tr>);})}</tbody></table></div>}
     {rt==="permissions"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","الخروج","العودة","السبب","الحالة"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.permissions.map((p,i)=>{const emp=db.employees.find(e=>e.id===p.employeeId);return(<tr key={p.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{p.date}</td><td style={{padding:"10px 14px"}}>{p.exitTime}</td><td style={{padding:"10px 14px"}}>{p.returnTime}</td><td style={{padding:"10px 14px"}}>{p.reason}</td><td style={{padding:"10px 14px"}}><Badge status={p.status} map={permSMap}/></td></tr>);})}</tbody></table></div>}
@@ -1547,6 +1656,7 @@ function MessagesPage({db,persist}){
       window.open(`https://wa.me/${ph}?text=${msgEnc}`,"_blank");
     } else {
       // فتح تطبيق الرسائل مع أول رقم (القيد التقني للمتصفح)
+      const ph=phones[0].replace(/\D/g,"");
       window.open(`sms:${phones.join(",")}?body=${decodeURIComponent(msgEnc)}`,"_blank");
     }
   };
@@ -1601,7 +1711,610 @@ function MessagesPage({db,persist}){
   };
 
   const clearHistory=()=>{
-    if(!window.confirm("مسح سجل الرسائل؟"))return;
+    if(!confirm("مسح سجل الرسائل؟"))return;
+    setHistory([]);
+    localStorage.removeItem("moi_msg_history");
+  };
+
+  return(<div>
+    <h2 style={{color:"#0a2d5e",fontSize:20,fontWeight:800,marginBottom:20}}>📨 الرسائل الجماعية</h2>
+
+    <div style={{display:"grid",gridTemplateColumns:"1.3fr 0.7fr",gap:20}}>
+
+      {/* === نموذج الإرسال === */}
+      <div>
+        <div style={{background:"#fff",borderRadius:12,padding:24,border:"1.5px solid #e0e8f4",marginBottom:20}}>
+          <h3 style={{color:"#0a2d5e",fontSize:15,fontWeight:700,margin:"0 0 18px",borderBottom:"2px solid #d4a017",paddingBottom:10}}>✏️ إنشاء رسالة جديدة</h3>
+
+          <FF label="عنوان الرسالة" required>
+            <input style={iS} value={title} onChange={e=>setTitle(e.target.value)} placeholder="مثال: تذكير بموعد الاجتماع"/>
+          </FF>
+
+          <FF label="نص الرسالة" required>
+            <textarea style={{...iS,height:120,resize:"vertical"}} value={body} onChange={e=>setBody(e.target.value)} placeholder="اكتب نص الرسالة هنا..."/>
+          </FF>
+
+          {/* معاينة الرسالة */}
+          {(title||body)&&(
+            <div style={{background:"#f8faff",border:"1.5px dashed #c8d4e8",borderRadius:10,padding:14,marginBottom:16}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:6}}>📋 معاينة الرسالة:</div>
+              <div style={{fontSize:13,color:"#0a2d5e",fontWeight:700}}>{title}</div>
+              <div style={{fontSize:13,color:"#444",marginTop:6,whiteSpace:"pre-wrap"}}>{body}</div>
+              <div style={{fontSize:11,color:"#aaa",marginTop:8,borderTop:"1px solid #e0e8f4",paddingTop:6}}>قسم المعلومات والإحصاء - وزارة الداخلية</div>
+            </div>
+          )}
+
+          {/* قنوات الإرسال */}
+          <FF label="قنوات الإرسال">
+            <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:14,fontWeight:600,color:channel.email?"#0a2d5e":"#888"}}>
+                <input type="checkbox" checked={channel.email} onChange={e=>setChannel({...channel,email:e.target.checked})}
+                  style={{width:16,height:16,cursor:"pointer"}}/>
+                <span style={{fontSize:18}}>📧</span> إيميل
+              </label>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:14,fontWeight:600,color:channel.sms?"#0a2d5e":"#888"}}>
+                <input type="checkbox" checked={channel.sms} onChange={e=>setChannel({...channel,sms:e.target.checked})}
+                  style={{width:16,height:16,cursor:"pointer"}}/>
+                <span style={{fontSize:18}}>📱</span> رسالة جوال / واتساب
+              </label>
+            </div>
+          </FF>
+
+          {/* المستقبلون */}
+          <FF label="المستقبلون">
+            <div style={{display:"flex",gap:10,marginBottom:12}}>
+              <button onClick={()=>setSendTo("all")}
+                style={{...bSm,background:sendTo==="all"?"linear-gradient(135deg,#0a2d5e,#1a4a8a)":"#f0f4fa",color:sendTo==="all"?"#fff":"#0a2d5e",border:sendTo==="all"?"none":"1.5px solid #c8d4e8"}}>
+                👥 جميع الموظفات ({employees.length})
+              </button>
+              <button onClick={()=>setSendTo("select")}
+                style={{...bSm,background:sendTo==="select"?"linear-gradient(135deg,#0a2d5e,#1a4a8a)":"#f0f4fa",color:sendTo==="select"?"#fff":"#0a2d5e",border:sendTo==="select"?"none":"1.5px solid #c8d4e8"}}>
+                ✅ اختيار محدد
+              </button>
+            </div>
+
+            {sendTo==="select"&&(
+              <div style={{border:"1.5px solid #e0e8f4",borderRadius:10,overflow:"hidden"}}>
+                <div style={{background:"#f0f4fa",padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"#555"}}>اختر الموظفات ({selected.length} مختارة)</span>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={selectAll} style={{...bSm,padding:"4px 10px",fontSize:11}}>تحديد الكل</button>
+                    <button onClick={clearAll} style={{...bSm,padding:"4px 10px",fontSize:11,background:"#f0f4fa",color:"#555",border:"1px solid #ccc"}}>إلغاء الكل</button>
+                  </div>
+                </div>
+                {employees.map(emp=>{
+                  const hasEmail=!!emp.email;
+                  const hasPhone=!!emp.phone;
+                  return(
+                    <label key={emp.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:"1px solid #f0f4fa",cursor:"pointer",background:selected.includes(emp.id)?"#e8f0fa":"#fff"}}>
+                      <input type="checkbox" checked={selected.includes(emp.id)} onChange={()=>toggleSelect(emp.id)} style={{width:16,height:16}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"#0a2d5e"}}>{emp.name}</div>
+                        <div style={{fontSize:11,color:"#888",display:"flex",gap:10,marginTop:2}}>
+                          <span style={{color:hasEmail?"#1a6b3a":"#ccc"}}>{hasEmail?"📧 "+emp.email:"📧 لا يوجد إيميل"}</span>
+                          <span style={{color:hasPhone?"#1a4a8a":"#ccc"}}>{hasPhone?"📱 "+emp.phone:"📱 لا يوجد جوال"}</span>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </FF>
+
+          {/* زر الإرسال */}
+          <div style={{marginTop:8}}>
+            {sent&&(
+              <div style={{background:"#d4edda",color:"#1a6b3a",padding:"10px 16px",borderRadius:8,marginBottom:12,fontSize:13,fontWeight:700,textAlign:"center"}}>
+                ✅ تم فتح تطبيقات الإرسال بنجاح!
+              </div>
+            )}
+            <button onClick={handleSend} disabled={sending}
+              style={{...bP,width:"100%",padding:14,fontSize:15,opacity:sending?0.7:1}}>
+              {sending?"⏳ جاري الإرسال...":"📤 إرسال الرسالة"}
+            </button>
+
+            <div style={{background:"#fff3cd",borderRadius:8,padding:"10px 14px",marginTop:12,fontSize:12,color:"#856404"}}>
+              <strong>ℹ️ ملاحظة:</strong> سيفتح النظام تطبيق الإيميل والرسائل تلقائياً مع الرسالة جاهزة للإرسال.
+              لإرسال الرسائل تلقائياً بدون فتح التطبيقات، يحتاج ربط النظام بخدمة SMTP أو SMS API.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* === الإحصائيات وسجل الرسائل === */}
+      <div>
+        {/* إحصائيات بيانات الاتصال */}
+        <div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4",marginBottom:16}}>
+          <h3 style={{color:"#0a2d5e",fontSize:14,fontWeight:700,margin:"0 0 14px"}}>📊 بيانات الاتصال</h3>
+          {[
+            {l:"إيميل متوفر",v:employees.filter(e=>e.email).length,t:employees.length,c:"#1a6b3a",bg:"#d4edda",i:"📧"},
+            {l:"جوال متوفر", v:employees.filter(e=>e.phone).length,t:employees.length,c:"#1a4a8a",bg:"#cce5ff",i:"📱"},
+            {l:"كلاهما متوفر",v:employees.filter(e=>e.email&&e.phone).length,t:employees.length,c:"#856404",bg:"#fff3cd",i:"✅"},
+          ].map((x,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #f0f4fa"}}>
+              <span style={{fontSize:13,color:"#555"}}>{x.i} {x.l}</span>
+              <span style={{background:x.bg,color:x.c,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700}}>{x.v}/{x.t}</span>
+            </div>
+          ))}
+          {employees.some(e=>!e.email||!e.phone)&&(
+            <div style={{background:"#fff3cd",borderRadius:8,padding:"8px 10px",marginTop:10,fontSize:11,color:"#856404"}}>
+              ⚠️ بعض الموظفات لا تملك بيانات اتصال كاملة. يمكن تحديثها من صفحة الموظفات.
+            </div>
+          )}
+        </div>
+
+        {/* سجل الرسائل */}
+        <div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h3 style={{color:"#0a2d5e",fontSize:14,fontWeight:700,margin:0}}>📋 سجل الرسائل</h3>
+            {history.length>0&&<button onClick={clearHistory} style={{...bRed,padding:"4px 10px",fontSize:11}}>مسح</button>}
+          </div>
+          {history.length===0?(
+            <div style={{textAlign:"center",color:"#aaa",fontSize:13,padding:"20px 0"}}>لا توجد رسائل مرسلة بعد</div>
+          ):(
+            <div style={{maxHeight:400,overflowY:"auto"}}>
+              {history.map(m=>(
+                <div key={m.id} style={{padding:"12px 0",borderBottom:"1px solid #f0f4fa"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <span style={{fontSize:13,fontWeight:700,color:"#0a2d5e"}}>{m.title}</span>
+                    <span style={{fontSize:11,color:"#aaa"}}>{m.date}</span>
+                  </div>
+                  <div style={{fontSize:12,color:"#555",marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.body}</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span style={{background:"#e8f0fa",color:"#0a2d5e",padding:"2px 8px",borderRadius:20,fontSize:11}}>
+                      👥 {m.targets.length} موظفة
+                    </span>
+                    {m.channels.map((ch,i)=>(
+                      <span key={i} style={{background:"#d4edda",color:"#1a6b3a",padding:"2px 8px",borderRadius:20,fontSize:11}}>{ch}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>);
+function ChangePasswordForm({user,persist,db}){
+  const [form,setForm]=useState({currentPass:"",newUser:"",newPass:"",confirm:""});
+  const [msg,setMsg]=useState(null);
+  const [show,setShow]=useState({c:false,n:false,cf:false});
+  const u=db.users.find(x=>x.id===user.id);
+
+  const handleSave=()=>{
+    setMsg(null);
+    if(!form.currentPass){setMsg({t:"error",m:"يرجى إدخال كلمة المرور الحالية"});return;}
+    if(u.password!==form.currentPass){setMsg({t:"error",m:"كلمة المرور الحالية غير صحيحة"});return;}
+    let newDB={...db}; let changes=[];
+    if(form.newUser.trim()&&form.newUser.trim()!==u.username){
+      if(db.users.find(x=>x.username===form.newUser.trim()&&x.id!==user.id)){setMsg({t:"error",m:"اسم المستخدم موجود مسبقاً"});return;}
+      newDB={...newDB,users:newDB.users.map(x=>x.id===user.id?{...x,username:form.newUser.trim()}:x)};
+      changes.push("اسم المستخدم");
+    }
+    if(form.newPass){
+      if(form.newPass.length<6){setMsg({t:"error",m:"كلمة المرور 6 أحرف على الأقل"});return;}
+      if(form.newPass!==form.confirm){setMsg({t:"error",m:"كلمة المرور وتأكيدها غير متطابقتين"});return;}
+      newDB={...newDB,users:newDB.users.map(x=>x.id===user.id?{...x,password:form.newPass}:x)};
+      changes.push("كلمة المرور");
+    }
+    if(changes.length===0){setMsg({t:"error",m:"لم تقم بأي تغيير"});return;}
+    persist(newDB);
+    setForm({currentPass:"",newUser:"",newPass:"",confirm:""});
+    setMsg({t:"success",m:"✅ تم تحديث: "+changes.join(" و ")});
+    setTimeout(()=>setMsg(null),4000);
+  };
+
+  const EyeBtn=({k})=>(<button type="button" onClick={()=>setShow(p=>({...p,[k]:!p[k]}))} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#888",fontSize:16,padding:0}}>{show[k]?"🙈":"👁️"}</button>);
+
+  return(<div>
+    <div style={{background:"#e8f0fa",borderRadius:8,padding:"10px 12px",marginBottom:14,fontSize:12,color:"#0a2d5e"}}>اسم المستخدم الحالي: <strong>{u?.username}</strong></div>
+    <FF label="كلمة المرور الحالية (للتحقق)" required><div style={{position:"relative"}}><input type={show.c?"text":"password"} style={{...iS,paddingLeft:36,fontSize:13}} value={form.currentPass} onChange={e=>setForm({...form,currentPass:e.target.value})} placeholder="••••••••"/><EyeBtn k="c"/></div></FF>
+    <FF label="اسم المستخدم الجديد (اختياري)"><input style={{...iS,fontSize:13}} value={form.newUser} onChange={e=>setForm({...form,newUser:e.target.value})} placeholder="اتركه فارغاً إذا لا تريد تغييره"/></FF>
+    <FF label="كلمة المرور الجديدة (اختياري)"><div style={{position:"relative"}}><input type={show.n?"text":"password"} style={{...iS,paddingLeft:36,fontSize:13}} value={form.newPass} onChange={e=>setForm({...form,newPass:e.target.value})} placeholder="اتركها فارغة إذا لا تريد تغييرها"/><EyeBtn k="n"/></div></FF>
+    {form.newPass&&<FF label="تأكيد كلمة المرور"><div style={{position:"relative"}}><input type={show.cf?"text":"password"} style={{...iS,paddingLeft:36,fontSize:13}} value={form.confirm} onChange={e=>setForm({...form,confirm:e.target.value})} placeholder="••••••••"/><EyeBtn k="cf"/></div></FF>}
+    {msg&&<div style={{background:msg.t==="error"?"#f8d7da":"#d4edda",color:msg.t==="error"?"#721c24":"#1a6b3a",padding:"8px 12px",borderRadius:8,fontSize:12,marginBottom:10,fontWeight:600}}>{msg.m}</div>}
+    <button style={{...bP,width:"100%",padding:"9px",fontSize:13}} onClick={handleSave}>💾 حفظ التغييرات</button>
+  </div>);
+}
+
+// ===== REMINDERS PAGE =====
+function RemindersPage({user,db}){
+  const [reminders,setReminders]=useState(()=>loadReminders(user.id));
+  const [saved,setSaved]=useState(false);
+  const today=new Date().toISOString().split("T")[0];
+  const todayRec=db.attendance.find(a=>a.employeeId===user.employeeId&&a.date===today);
+  const MINS=[5,10,15,20,25,30];
+
+  const calcTime=(base,before)=>{
+    const [h,m]=base.split(":").map(Number);
+    const t=h*60+m-before;
+    return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`;
+  };
+
+  const update=(key,field,value)=>{
+    const bases={checkIn:"07:30",presence:"09:31",checkOut:"12:45"};
+    const upd={...reminders,[key]:{...reminders[key],[field]:value}};
+    if(field==="minutes") upd[key].time=calcTime(bases[key],value);
+    setReminders(upd);
+  };
+
+  const save=()=>{
+    saveReminders(user.id,reminders);
+    setReminders({...reminders}); // force re-render
+    if(Notification && Notification.permission==="default"){
+      Notification.requestPermission().then(p=>{
+        if(p==="granted") alert("✅ تم تفعيل الإشعارات!");
+      });
+    }
+    setSaved(true);
+    setTimeout(()=>setSaved(false),3000);
+  };
+
+  const alarms=[
+    {key:"checkIn",  label:"⏰ تنبيه الحضور",      desc:"تنبيه قبل بداية الدوام 7:30",       done:!!todayRec?.checkIn},
+    {key:"presence", label:"🔔 تنبيه التواجد",      desc:"تنبيه لبصمة التواجد الإلزامية",     done:!!todayRec?.presenceStamp},
+    {key:"checkOut", label:"🚪 تنبيه الانصراف",     desc:"تنبيه قبل موعد الانصراف",            done:!!todayRec?.checkOut},
+  ];
+
+  return(<div>
+    <h2 style={{color:"#0a2d5e",fontSize:20,fontWeight:800,marginBottom:8}}>🔔 إعدادات التنبيهات</h2>
+    <div style={{background:"#e8f0fa",borderRadius:10,padding:"10px 16px",marginBottom:20,fontSize:13,color:"#0a2d5e"}}>
+      ℹ️ التنبيهات تعمل تلقائياً عند حلول الوقت — أبقِ التطبيق مفتوحاً في المتصفح.
+    </div>
+    <div style={{display:"grid",gap:14,marginBottom:20}}>
+      {alarms.map(a=>(
+        <div key={a.key} style={{background:"#fff",borderRadius:12,padding:18,border:"1.5px solid #e0e8f4"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:"#0a2d5e"}}>{a.label}</div>
+              <div style={{fontSize:11,color:"#888",marginTop:2}}>{a.desc}</div>
+              {a.done&&<div style={{fontSize:11,color:"#1a6b3a",fontWeight:600,marginTop:4}}>✅ تم التسجيل اليوم</div>}
+            </div>
+            <div style={{position:"relative",width:44,height:24,background:reminders[a.key].enabled?"#0a2d5e":"#ccc",borderRadius:12,cursor:"pointer",flexShrink:0}} onClick={()=>update(a.key,"enabled",!reminders[a.key].enabled)}>
+              <div style={{position:"absolute",top:2,right:reminders[a.key].enabled?2:22,width:20,height:20,background:"#fff",borderRadius:"50%",transition:"right 0.3s"}}/>
+            </div>
+          </div>
+          {reminders[a.key].enabled&&(
+            <div>
+              <div style={{fontSize:12,color:"#555",marginBottom:8,fontWeight:600}}>التنبيه قبل الموعد بـ:</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {MINS.map(m=>(
+                  <button key={m} onClick={()=>update(a.key,"minutes",m)}
+                    style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",
+                      background:reminders[a.key].minutes===m?"linear-gradient(135deg,#0a2d5e,#1a4a8a)":"#f0f4fa",
+                      color:reminders[a.key].minutes===m?"#fff":"#0a2d5e"}}>
+                    {m}د
+                  </button>
+                ))}
+              </div>
+              <div style={{marginTop:10,background:"#f0f4fa",borderRadius:8,padding:"8px 12px",fontSize:13}}>
+                🕐 وقت التنبيه: <strong style={{color:"#0a2d5e"}}>{reminders[a.key].time}</strong>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+    {saved&&<div style={{background:"#d4edda",color:"#1a6b3a",padding:"10px",borderRadius:8,fontSize:13,fontWeight:700,textAlign:"center",marginBottom:12}}>✅ تم حفظ التنبيهات</div>}
+    <button style={{...bP,width:"100%",padding:14,fontSize:15}} onClick={save}>💾 حفظ الإعدادات</button>
+    <div style={{marginTop:16,background:"#e8f0fa",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#0a2d5e"}}>
+      <strong>⚠️ ملاحظة:</strong> يجب أن يكون المتصفح مفتوحاً حتى تعمل التنبيهات.
+      للحصول على إشعارات حتى عند إغلاق الصفحة، أضف الموقع لشاشة الرئيسية في الجوال.
+    </div>
+  </div>);
+}
+// ===== EMPLOYEES PAGE =====
+function EmployeesPage({db,persist,cy,cm}){
+  const [modal,setModal]=useState(null);
+  const [form,setForm]=useState({});
+  const openAdd=()=>{setForm({name:"",employeeNo:"",title:"",phone:"",email:"",status:"active"});setModal("add");};
+  const openEdit=(e)=>{setForm({...e});setModal("edit");};
+  const save=()=>{
+    if(!form.name||!form.employeeNo)return alert("يرجى ملء الحقول المطلوبة");
+    const nDB={...db};
+    if(modal==="add"){const nid=Math.max(...db.employees.map(e=>e.id),0)+1;nDB.employees=[...db.employees,{...form,id:nid}];}
+    else nDB.employees=db.employees.map(e=>e.id===form.id?form:e);
+    persist(nDB);setModal(null);
+  };
+  const del=(id)=>{if(!confirm("حذف؟"))return;persist({...db,employees:db.employees.filter(e=>e.id!==id)});};
+  return(<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <h2 style={{margin:0,color:"#0a2d5e",fontSize:20,fontWeight:800}}>👥 إدارة الموظفات</h2>
+      <button style={bP} onClick={openAdd}>+ إضافة موظفة</button>
+    </div>
+    <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الاسم","الرقم الوظيفي","المسمى","الحالة","تأخير/شهر","استئذانات","إجراءات"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead>
+        <tbody>{db.employees.map((emp,i)=>{
+          const s=calcStats(emp.id,db,cy,cm);
+          return(<tr key={emp.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
+            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
+            <td style={{padding:"12px 14px"}}>{emp.employeeNo}</td>
+            <td style={{padding:"12px 14px"}}>{emp.title}</td>
+            <td style={{padding:"12px 14px"}}><Badge status={emp.status} map={empSMap}/></td>
+            <td style={{padding:"12px 14px",color:s.lateOver?"#c0392b":"#555",fontWeight:s.lateOver?700:400}}>{s.lateMin}د {s.lateOver?"⚠️":""}</td>
+            <td style={{padding:"12px 14px",color:s.permOver?"#c0392b":"#555",fontWeight:s.permOver?700:400}}>{s.permMonth}/{LIMITS.permissionsPerMonth}{s.permOver?" ⚠️":""}</td>
+            <td style={{padding:"12px 14px"}}><div style={{display:"flex",gap:6}}><button style={bGold} onClick={()=>openEdit(emp)}>تعديل</button><button style={bRed} onClick={()=>del(emp.id)}>حذف</button></div></td>
+          </tr>);
+        })}</tbody>
+      </table>
+    </div>
+    {modal&&(<Modal title={modal==="add"?"إضافة موظفة":"تعديل بيانات"} onClose={()=>setModal(null)}>
+      <FF label="الاسم الكامل" required><input style={iS} value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></FF>
+      <FF label="الرقم الوظيفي" required><input style={iS} value={form.employeeNo||""} onChange={e=>setForm({...form,employeeNo:e.target.value})}/></FF>
+      <FF label="المسمى الوظيفي"><input style={iS} value={form.title||""} onChange={e=>setForm({...form,title:e.target.value})}/></FF>
+      <FF label="رقم الهاتف"><input style={iS} value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})}/></FF>
+      <FF label="البريد الإلكتروني"><input style={iS} value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})}/></FF>
+      <FF label="الحالة"><select style={sS} value={form.status||"active"} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">نشطة</option><option value="leave">في إجازة</option><option value="transferred">منقولة</option><option value="suspended">موقوفة</option></select></FF>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><button style={bS} onClick={()=>setModal(null)}>إلغاء</button><button style={bP} onClick={save}>💾 حفظ</button></div>
+    </Modal>)}
+  </div>);
+}
+
+// ===== ACCOUNTS PAGE =====
+function AccountsPage({db,persist}){
+  const [modal,setModal]=useState(null);
+  const [form,setForm]=useState({});
+  const [sp,setSP]=useState({});
+  const openAdd=()=>{setForm({username:"",password:"",role:"employee",employeeId:"",name:""});setModal("add");};
+  const openEdit=(u)=>{setForm({...u});setModal("edit");};
+  const save=()=>{
+    if(!form.username||!form.password)return alert("يرجى ملء الحقول");
+    if(db.users.find(u=>u.username===form.username&&u.id!==form.id))return alert("اسم المستخدم مستخدم");
+    const nDB={...db};
+    if(modal==="add"){const nid=Math.max(...db.users.map(u=>u.id),0)+1;nDB.users=[...db.users,{...form,id:nid,employeeId:form.employeeId?parseInt(form.employeeId):null}];}
+    else nDB.users=db.users.map(u=>u.id===form.id?{...form,employeeId:form.employeeId?parseInt(form.employeeId):null}:u);
+    persist(nDB);setModal(null);
+  };
+  const del=(id)=>{if(db.users.find(u=>u.id===id)?.role==="admin")return alert("لا يمكن حذف المسؤول");if(!confirm("حذف؟"))return;persist({...db,users:db.users.filter(u=>u.id!==id)});};
+  const resetPass=(id)=>{const p="Pass@"+Math.random().toString(36).slice(2,8).toUpperCase();persist({...db,users:db.users.map(u=>u.id===id?{...u,password:p}:u)});alert(`كلمة المرور الجديدة: ${p}`);};
+  return(<div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <h2 style={{margin:0,color:"#0a2d5e",fontSize:20,fontWeight:800}}>🔑 إدارة الحسابات</h2>
+      <button style={bP} onClick={openAdd}>+ إضافة حساب</button>
+    </div>
+    <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الاسم","الرتبة","اسم المستخدم","كلمة المرور","الصلاحية","الموظفة","إجراءات"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead>
+        <tbody>{db.users.map((u,i)=>{
+          const emp=db.employees.find(e=>e.id===u.employeeId);
+          return(<tr key={u.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
+            <td style={{padding:"12px 14px",fontWeight:600,color:"#0a2d5e"}}>{u.name}</td>
+            <td style={{padding:"12px 14px",color:"#856404",fontWeight:600,fontSize:12}}>{u.rank||"—"}</td>
+            <td style={{padding:"12px 14px"}}><span style={{background:"#e8f0fa",color:"#0a2d5e",padding:"3px 10px",borderRadius:6,fontFamily:"monospace",fontWeight:700}}>{u.username}</span></td>
+            <td style={{padding:"12px 14px"}}><span style={{fontFamily:"monospace",color:"#555",fontSize:12}}>{sp[u.id]?u.password:"••••••••"}</span><button onClick={()=>setSP(p=>({...p,[u.id]:!p[u.id]}))} style={{marginRight:6,background:"none",border:"none",cursor:"pointer",color:"#1a4a8a",fontSize:11,fontFamily:"inherit"}}>{sp[u.id]?"إخفاء":"إظهار"}</button></td>
+            <td style={{padding:"12px 14px"}}><span style={{background:u.role==="admin"?"#e8f0fa":"#d4edda",color:u.role==="admin"?"#0a2d5e":"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:600}}>{u.role==="admin"?"مسؤول":"موظفة"}</span></td>
+            <td style={{padding:"12px 14px",color:"#555"}}>{emp?.name||(u.role==="admin"?"—":"غير مرتبط")}</td>
+            <td style={{padding:"12px 14px"}}><div style={{display:"flex",gap:5,flexWrap:"wrap"}}><button style={bGold} onClick={()=>openEdit(u)}>تعديل</button><button style={{...bSm,background:"linear-gradient(135deg,#5a3878,#7d4fa3)"}} onClick={()=>resetPass(u.id)}>إعادة كلمة المرور</button>{u.role!=="admin"&&<button style={bRed} onClick={()=>del(u.id)}>حذف</button>}</div></td>
+          </tr>);
+        })}</tbody>
+      </table>
+    </div>
+    {modal&&(<Modal title={modal==="add"?"إضافة حساب":"تعديل الحساب"} onClose={()=>setModal(null)}>
+      <FF label="الاسم" required><input style={iS} value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></FF>
+      <FF label="اسم المستخدم" required><input style={iS} value={form.username||""} onChange={e=>setForm({...form,username:e.target.value})}/></FF>
+      <FF label="كلمة المرور" required><input style={iS} value={form.password||""} onChange={e=>setForm({...form,password:e.target.value})}/></FF>
+      <FF label="الرتبة / الدرجة"><input style={iS} value={form.rank||""} onChange={e=>setForm({...form,rank:e.target.value})} placeholder="مثال: عقيد / ملازم أول / —"/></FF>
+      <FF label="الصلاحية"><select style={sS} value={form.role||"employee"} onChange={e=>setForm({...form,role:e.target.value})}><option value="employee">موظفة</option><option value="admin">مسؤول (صلاحيات كاملة)</option></select></FF>
+      {form.role!=="admin"&&<FF label="الموظفة المرتبطة"><select style={sS} value={form.employeeId||""} onChange={e=>setForm({...form,employeeId:e.target.value})}><option value="">— اختر —</option>{db.employees.map(e=><option key={e.id} value={e.id}>{e.name} ({e.employeeNo})</option>)}</select></FF>}
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><button style={bS} onClick={()=>setModal(null)}>إلغاء</button><button style={bP} onClick={save}>💾 حفظ</button></div>
+    </Modal>)}
+  </div>);
+}
+
+// ===== REPORTS PAGE =====
+function ReportsPage({db,cy,cm}){
+  const [rt,setRT]=useState("daily");
+  const [fe,setFE]=useState("all");
+  const [fd,setFD]=useState(new Date().toISOString().split("T")[0]);
+  const [fm,setFM]=useState(new Date().toISOString().slice(0,7));
+
+  const getRecs=()=>{
+    let r=db.attendance;
+    if(fe!=="all")r=r.filter(x=>x.employeeId===parseInt(fe));
+    if(rt==="daily")r=r.filter(x=>x.date===fd);
+    if(rt==="monthly")r=r.filter(x=>x.date.startsWith(fm));
+    return r;
+  };
+  const recs=getRecs();
+  const st={p:recs.filter(r=>r.status==="present").length,l:recs.filter(r=>r.status==="late").length,a:recs.filter(r=>r.status==="absent").length,lv:recs.filter(r=>r.status==="leave").length};
+
+  const exportCSV=()=>{
+    const h=["الموظفة","التاريخ","الحضور","الانصراف المقرر","الانصراف الفعلي","التأخير(د)","بصمة التواجد","الحالة"];
+    const rows=recs.map(r=>{const emp=db.employees.find(e=>e.id===r.employeeId);const lm=r.checkIn?calcLateMinutes(r.checkIn):0;const eco=r.checkIn?getExpectedCheckout(r.checkIn):"";return[emp?.name,r.date,r.checkIn,eco,r.checkOut,lm,r.presenceStamp,statusMap[r.status]?.label].join(",");});
+    const csv="\uFEFF"+[h.join(","),...rows].join("\n");
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));a.download="تقرير.csv";a.click();
+  };
+
+  return(<div>
+    <h2 style={{color:"#0a2d5e",fontSize:20,fontWeight:800,marginBottom:20}}>📈 التقارير</h2>
+    <div style={{background:"#fff",borderRadius:12,padding:20,marginBottom:20,border:"1.5px solid #e0e8f4"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:14}}>
+        <FF label="نوع التقرير"><select style={sS} value={rt} onChange={e=>setRT(e.target.value)}><option value="daily">يومي</option><option value="monthly">شهري</option><option value="employee">موظفة</option><option value="limits">الرصيد والحدود</option><option value="late">التأخير</option><option value="leaves">الإجازات</option><option value="permissions">الاستئذانات</option></select></FF>
+        {(rt==="daily"||rt==="employee")&&<FF label="التاريخ"><input type="date" style={iS} value={fd} onChange={e=>setFD(e.target.value)}/></FF>}
+        {rt==="monthly"&&<FF label="الشهر"><input type="month" style={iS} value={fm} onChange={e=>setFM(e.target.value)}/></FF>}
+        {(rt==="employee"||rt==="daily")&&<FF label="الموظفة"><select style={sS} value={fe} onChange={e=>setFE(e.target.value)}><option value="all">الكل</option>{db.employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></FF>}
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:8}}>
+        <button style={bP} onClick={exportCSV}>📥 تصدير Excel</button>
+        <button style={bS} onClick={()=>window.print()}>🖨️ طباعة</button>
+      </div>
+    </div>
+
+    {(rt==="daily"||rt==="monthly"||rt==="employee")&&(<>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
+        {[{l:"حضور",v:st.p,c:"#1a6b3a",bg:"#d4edda"},{l:"متأخرات",v:st.l,c:"#856404",bg:"#fff3cd"},{l:"غياب",v:st.a,c:"#721c24",bg:"#f8d7da"},{l:"إجازة",v:st.lv,c:"#004085",bg:"#cce5ff"}].map((s,i)=>(
+          <div key={i} style={{background:s.bg,borderRadius:10,padding:14,textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:s.c}}>{s.v}</div><div style={{fontSize:12,color:s.c,fontWeight:600,marginTop:4}}>{s.l}</div></div>
+        ))}
+      </div>
+      <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","الحضور","الانصراف المقرر","الانصراف الفعلي","التأخير","بصمة التواجد","الحالة"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"right"}}>{h}</th>)}</tr></thead>
+          <tbody>{recs.map((r,i)=>{const emp=db.employees.find(e=>e.id===r.employeeId);const lm=r.checkIn?calcLateMinutes(r.checkIn):0;const eco=r.checkIn?getExpectedCheckout(r.checkIn):null;return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}>
+            <td style={{padding:"9px 12px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td>
+            <td style={{padding:"9px 12px"}}>{r.date}</td>
+            <td style={{padding:"9px 12px"}}>{r.checkIn||"-"}</td>
+            <td style={{padding:"9px 12px",fontStyle:"italic",color:"#555"}}>{eco||"-"}</td>
+            <td style={{padding:"9px 12px"}}>{r.checkOut||"-"}</td>
+            <td style={{padding:"9px 12px"}}>{lm>0?<span style={{background:"#fff3cd",color:"#856404",padding:"2px 8px",borderRadius:20,fontSize:11}}>{lm}د</span>:"—"}</td>
+            <td style={{padding:"9px 12px"}}>{r.presenceStamp||"-"}</td>
+            <td style={{padding:"9px 12px"}}><Badge status={r.status} map={statusMap}/></td>
+          </tr>);})}
+          </tbody>
+        </table>
+      </div>
+    </>)}
+
+    {rt==="limits"&&(
+      <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","تأخير/شهر","استئذانات/شهر","إجازة مرضية/سنة","إجازة طارئة/شهر","الحالة"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead>
+          <tbody>{db.employees.map((emp,i)=>{const s=calcStats(emp.id,db,cy,cm);const ok=!s.lateOver&&!s.permOver&&!s.sickOver&&!s.emergOver;return(
+            <tr key={emp.id} style={{background:!ok?"#fff8f0":i%2===0?"#f8faff":"#fff"}}>
+              <td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp.name}</td>
+              <td style={{padding:"10px 14px",color:s.lateOver?"#c0392b":"#333",fontWeight:s.lateOver?700:400}}>{s.lateMin}/{LIMITS.lateMinutesPerMonth}د{s.lateOver?" ⚠️":""}</td>
+              <td style={{padding:"10px 14px",color:s.permOver?"#c0392b":"#333",fontWeight:s.permOver?700:400}}>{s.permMonth}/{LIMITS.permissionsPerMonth}{s.permOver?" ⚠️":""}</td>
+              <td style={{padding:"10px 14px",color:s.sickOver?"#c0392b":"#333",fontWeight:s.sickOver?700:400}}>{s.sickYear}/{LIMITS.sickLeavesPerYear}{s.sickOver?" ⚠️":""}</td>
+              <td style={{padding:"10px 14px",color:s.emergOver?"#c0392b":"#333",fontWeight:s.emergOver?700:400}}>{s.emergMonth}/{LIMITS.emergencyLeavesPerMonth}{s.emergOver?" ⚠️":""}</td>
+              <td style={{padding:"10px 14px"}}>{ok?<span style={{background:"#d4edda",color:"#1a6b3a",padding:"3px 10px",borderRadius:20,fontSize:12}}>✓ ضمن الحدود</span>:<span style={{background:"#f8d7da",color:"#721c24",padding:"3px 10px",borderRadius:20,fontSize:12}}>⚠️ تجاوز</span>}</td>
+            </tr>
+          );})}
+          </tbody>
+        </table>
+      </div>
+    )}
+    {rt==="late"&&(
+      <div style={{marginBottom:16}}>
+        {(()=>{
+          const history=JSON.parse(localStorage.getItem("late_history")||"{}");
+          const months=Object.keys(history).sort().reverse().slice(0,3);
+          if(months.length===0) return null;
+          return(<div style={{background:"#fff",borderRadius:12,padding:20,border:"1.5px solid #e0e8f4",marginBottom:16}}>
+            <h3 style={{color:"#0a2d5e",fontSize:15,fontWeight:700,margin:"0 0 14px"}}>📊 إحصائيات التأخير الشهرية المحفوظة</h3>
+            {months.map(m=>(
+              <div key={m} style={{marginBottom:12}}>
+                <div style={{fontWeight:700,color:"#0a2d5e",marginBottom:6,fontSize:13}}>{m}</div>
+                {Object.values(history[m]).map((s,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 8px",background:"#f8faff",borderRadius:6,marginBottom:4}}>
+                    <span>{s.name}</span>
+                    <span style={{color:s.totalLate>LIMITS.lateMinutesPerMonth?"#c0392b":"#555",fontWeight:700}}>{s.totalLate} دقيقة ({s.count} مرة)</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>);
+        })()}
+      </div>
+    )}
+    {rt==="late"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","التأخير","السبب","الاعتماد"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.lateRecords.map((r,i)=>{const emp=db.employees.find(e=>e.id===r.employeeId);return(<tr key={r.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{r.date}</td><td style={{padding:"10px 14px"}}><span style={{background:"#fff3cd",color:"#856404",padding:"3px 10px",borderRadius:20,fontSize:12}}>{r.duration}د</span></td><td style={{padding:"10px 14px"}}>{r.reason||"-"}</td><td style={{padding:"10px 14px"}}>{r.approved?"✅":"⏳"}</td></tr>);})}</tbody></table></div>}
+    {rt==="leaves"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","النوع","السبب"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.leaves.map((l,i)=>{const emp=db.employees.find(e=>e.id===l.employeeId);return(<tr key={l.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{l.date}</td><td style={{padding:"10px 14px"}}>{leaveMap[l.type]}</td><td style={{padding:"10px 14px"}}>{l.reason||"-"}</td></tr>);})}</tbody></table></div>}
+    {rt==="permissions"&&<div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1.5px solid #e0e8f4"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr style={{background:"linear-gradient(135deg,#0a2d5e,#1a4a8a)",color:"#fff"}}>{["الموظفة","التاريخ","الخروج","العودة","السبب","الحالة"].map(h=><th key={h} style={{padding:"12px 14px",textAlign:"right"}}>{h}</th>)}</tr></thead><tbody>{db.permissions.map((p,i)=>{const emp=db.employees.find(e=>e.id===p.employeeId);return(<tr key={p.id} style={{background:i%2===0?"#f8faff":"#fff"}}><td style={{padding:"10px 14px",fontWeight:600,color:"#0a2d5e"}}>{emp?.name}</td><td style={{padding:"10px 14px"}}>{p.date}</td><td style={{padding:"10px 14px"}}>{p.exitTime}</td><td style={{padding:"10px 14px"}}>{p.returnTime}</td><td style={{padding:"10px 14px"}}>{p.reason}</td><td style={{padding:"10px 14px"}}><Badge status={p.status} map={permSMap}/></td></tr>);})}</tbody></table></div>}
+  </div>);
+}
+
+
+// ===== MESSAGES PAGE =====
+function MessagesPage({db,persist}){
+  const [title,setTitle]=useState("");
+  const [body,setBody]=useState("");
+  const [sendTo,setSendTo]=useState("all"); // all | select
+  const [selected,setSelected]=useState([]);
+  const [channel,setChannel]=useState({email:true,sms:true});
+  const [sent,setSent]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [history,setHistory]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem("moi_msg_history")||"[]");}catch{return [];}
+  });
+
+  const employees=db.employees.filter(e=>e.status==="active");
+
+  const getTargets=()=>{
+    if(sendTo==="all") return employees;
+    return employees.filter(e=>selected.includes(e.id));
+  };
+
+  const toggleSelect=(id)=>{
+    setSelected(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  };
+
+  const selectAll=()=>setSelected(employees.map(e=>e.id));
+  const clearAll=()=>setSelected([]);
+
+  // فتح تطبيق الإيميل الافتراضي
+  const openEmailClient=(emails,subj,msg)=>{
+    const to=emails.join(",");
+    const subject=encodeURIComponent(subj);
+    const bodyEnc=encodeURIComponent(msg);
+    window.open(`mailto:${to}?subject=${subject}&body=${bodyEnc}`,"_blank");
+  };
+
+  // فتح تطبيق الرسائل / واتساب
+  const openSMSClient=(phones,msg)=>{
+    const msgEnc=encodeURIComponent(msg);
+    // واتساب ويب للرسائل الجماعية
+    if(phones.length===1){
+      const ph=phones[0].replace(/\D/g,"");
+      window.open(`https://wa.me/${ph}?text=${msgEnc}`,"_blank");
+    } else {
+      // فتح تطبيق الرسائل مع أول رقم (القيد التقني للمتصفح)
+      const ph=phones[0].replace(/\D/g,"");
+      window.open(`sms:${phones.join(",")}?body=${decodeURIComponent(msgEnc)}`,"_blank");
+    }
+  };
+
+  const handleSend=()=>{
+    const targets=getTargets();
+    if(!title.trim()||!body.trim()){alert("يرجى كتابة عنوان ونص الرسالة");return;}
+    if(targets.length===0){alert("يرجى اختيار موظفة واحدة على الأقل");return;}
+    if(!channel.email&&!channel.sms){alert("يرجى اختيار قناة إرسال واحدة على الأقل");return;}
+
+    setSending(true);
+
+    const fullMsg=title+" - "+body+" - قسم المعلومات والاحصاء - وزارة الداخلية";
+    const emails=targets.map(e=>e.email).filter(Boolean);
+    const phones=targets.map(e=>e.phone).filter(Boolean);
+
+    let sentChannels=[];
+
+    if(channel.email && emails.length>0){
+      openEmailClient(emails,title,fullMsg);
+      sentChannels.push(`إيميل (${emails.length} موظفة)`);
+    }
+
+    if(channel.sms && phones.length>0){
+      setTimeout(()=>openSMSClient(phones,fullMsg),800);
+      sentChannels.push(`جوال (${phones.length} موظفة)`);
+    }
+
+    // حفظ في السجل
+    const newMsg={
+      id:Date.now(),
+      date:new Date().toLocaleString("ar-KW"),
+      title,
+      body,
+      targets:targets.map(e=>e.name),
+      channels:sentChannels,
+      sentBy:"رئيس القسم"
+    };
+    const newHistory=[newMsg,...history].slice(0,50);
+    setHistory(newHistory);
+    localStorage.setItem("moi_msg_history",JSON.stringify(newHistory));
+
+    setSending(false);
+    setSent(true);
+    setTimeout(()=>setSent(false),4000);
+
+    if(sentChannels.length>0){
+      alert("تم فتح تطبيقات الارسال - عدد المستقبلين: "+targets.length+" موظفة");
+    } else {
+      alert("لا تتوفر بيانات اتصال للموظفات - يرجى تحديث بياناتهن من صفحة الموظفات");
+    }
+  };
+
+  const clearHistory=()=>{
+    if(!confirm("مسح سجل الرسائل؟"))return;
     setHistory([]);
     localStorage.removeItem("moi_msg_history");
   };
